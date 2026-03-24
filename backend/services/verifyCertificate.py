@@ -168,7 +168,9 @@ def auto_login_yidun(page: ChromiumPage, max_retries: int = 3) -> bool:
 # === 独立线程：自动化主控任务 (引入 main.py 逻辑) ===
 def automation_task(session_id: str, req: InitReq):
     session = active_sessions[session_id]
-    page = ChromiumPage(addr_or_opts=get_options(headless=False))
+    co = ChromiumOptions().set_browser_path(r'C:\Users\sout\AppData\Local\ms-playwright\chromium-1181\chrome-win\chrome.exe')
+    # page = ChromiumPage(addr_or_opts=get_options(headless=False))
+    page = ChromiumPage(addr_or_opts=co)
 
     try:
         # 1. 执行自动登录 (复用之前的逻辑)
@@ -226,26 +228,31 @@ def automation_task(session_id: str, req: InitReq):
             time.sleep(random.uniform(0.6, 1.0))
             modal.click.at(offset_x=p.x, offset_y=p.y)
 
-        # 7. 等待接口响应
-        # 验证码点击后，网页 JS 会立即请求 getSoftPublicity
-        logger.info(f"[{session_id}] 点击完成，等待 API 数据返回...")
-        res_packet = page.listen.wait(timeout=15)
+        # 7. 等待页面渲染结果
+        logger.info(f"[{session_id}] 点击完成，等待页面数据渲染...")
 
-        if res_packet and res_packet.response.body:
-            # 捕获到了接口原始 JSON
-            session["data"] = res_packet.response.body
-            session["status"] = "SUCCESS"
-            logger.info(f"[{session_id}] 成功拦截到 API 响应数据")
-        else:
-            # 如果监听失败，退而求其次使用 DOM 爬取
-            time.sleep(2)
+        list_container = page.wait.ele_displayed('.public_inquiry_list', timeout=15)
+
+        if list_container:
             items = page.eles(".list_item")
             if items:
-                session["data"] = [{"text": i.text} for i in items]
+                extracted_data = [{"text": i.text} for i in items]
+                session["data"] = extracted_data
                 session["status"] = "SUCCESS"
+                logger.info(f"[{session_id}] 成功从页面抓取到 {len(items)} 条数据: {extracted_data}")
             else:
-                session["status"] = "FAILED"
-                session["error"] = "未能捕获到接口响应或页面渲染结果"
+                session["data"] = []
+                session["status"] = "SUCCESS"
+                logger.info(f"[{session_id}] 官方数据库中未查到该证书")
+        else:
+            error_tip = page.ele('.el-message__content')
+            if error_tip:
+                logger.error(f"[{session_id}] 页面出现报错提示: {error_tip.text}")
+                session["error"] = error_tip.text
+            else:
+                session["error"] = "验证通过后，超时未加载出查询结果"
+
+            session["status"] = "FAILED"
 
     except Exception as e:
         logger.error(f"自动化流异常: {e}")
