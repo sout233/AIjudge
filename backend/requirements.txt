@@ -1,0 +1,14 @@
+DrissionPage==4.1.1.2
+fastapi==0.135.1
+httpx==0.28.1
+Jinja2==3.1.6
+loguru==0.7.3
+numpy==2.4.3
+opencv_python==4.13.0.92
+pydantic==2.12.5
+pypdf==6.8.0
+python_jose==3.5.0
+Requests==2.32.5
+uvicorn==0.41.0
+weasyprint==68.1
+python-multipart
