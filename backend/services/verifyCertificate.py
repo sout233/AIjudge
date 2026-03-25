@@ -15,6 +15,8 @@ import asyncio
 
 from services.utils import download_image, identify_gap_tcaptcha, calculate_display_ratio, generate_tcaptcha_track
 
+from services.auto_solver import get_target_coords
+
 active_sessions: Dict[str, dict] = {}
 
 # === 配置 ===
@@ -165,11 +167,30 @@ def auto_login_yidun(page: ChromiumPage, max_retries: int = 3) -> bool:
         return False
 
 
+def base64_to_cv2(base64_str):
+    # 1. 如果字符串包含 "data:image/...", 则去掉前缀
+    if ',' in base64_str:
+        base64_str = base64_str.split(',')[1]
+
+    # 2. 将 base64 字符串解码为字节数组
+    img_data = base64.b64decode(base64_str)
+
+    # 3. 将字节数组转换为 numpy 数组 (uint8 类型)
+    nparr = np.frombuffer(img_data, np.uint8)
+
+    # 4. 使用 OpenCV 的 imdecode 将其解码为图像格式
+    # cv2.IMREAD_COLOR 表示加载彩色图像
+    img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+
+    return img
+
+
 # === 独立线程：自动化主控任务 (引入 main.py 逻辑) ===
 def automation_task(session_id: str, req: InitReq):
     session = active_sessions[session_id]
-    co = ChromiumOptions().set_browser_path(r'C:\Users\sout\AppData\Local\ms-playwright\chromium-1181\chrome-win\chrome.exe')
+    # co = ChromiumOptions().set_browser_path(r'C:\Users\sout\AppData\Local\ms-playwright\chromium-1181\chrome-win\chrome.exe')
     # page = ChromiumPage(addr_or_opts=get_options(headless=False))
+    co = ChromiumOptions()
     page = ChromiumPage(addr_or_opts=co)
 
     try:
@@ -177,7 +198,7 @@ def automation_task(session_id: str, req: InitReq):
         if not auto_login_yidun(page):
             session["status"] = "FAILED"
             session["error"] = "自动登录失败"
-            return
+            # return
 
         # 2. 开启数据包监听：目标是获取 getSoftPublicity 的响应
         # 必须在触发请求的动作（导航或点击验证码）之前开启
@@ -205,7 +226,20 @@ def automation_task(session_id: str, req: InitReq):
             session["error"] = "未发现验证码弹窗"
             return
 
+        time.sleep(2)
+        inst_text = modal.ele(".:yidun-fallback__tip").text
+
+        print(inst_text)
         img_base64 = modal.get_screenshot(as_base64="webp")
+        # image = base64_to_cv2(img_base64)
+        modal.ele('.yidun_bg-img').save(path=".", name="ocr.jpg", timeout=2, rename=False)
+
+        sim_result = get_target_coords(
+            model_path="./captcha_multi_task.pth",
+            img_path= "./ocr.jpg",
+            instruction_text=inst_text
+        )
+
         session["captcha_data"] = {
             "bg_image": f"data:image/webp;base64,{img_base64}",
             "width": modal.rect.size[0],
@@ -214,19 +248,27 @@ def automation_task(session_id: str, req: InitReq):
         session["status"] = "CAPTCHA_REQUIRED"
 
         # 5. 阻塞等待前端传回坐标
-        while session.get("coords") is None:
-            if time.time() - session["start_time"] > 300:  # 5分钟超时
-                session["status"] = "FAILED"
-                return
-            time.sleep(0.5)
+        # while session.get("coords") is None:
+        #     if time.time() - session["start_time"] > 300:  # 5分钟超时
+        #         session["status"] = "FAILED"
+        #         return
+        #     time.sleep(0.5)
 
         # 6. 执行模拟点击
         logger.info(f"[{session_id}] 接收到坐标，开始模拟人工操作...")
-        coords = session["coords"]
-        for p in coords:
-            page.actions.move_to(ele_or_loc=modal, offset_x=p.x, offset_y=p.y)
-            time.sleep(random.uniform(0.6, 1.0))
-            modal.click.at(offset_x=p.x, offset_y=p.y)
+        # coords = session["coords"]
+        # for p in coords:
+        #     page.actions.move_to(ele_or_loc=modal, offset_x=p.x, offset_y=p.y)
+        #     time.sleep(random.uniform(0.6, 1.0))
+        #     modal.click.at(offset_x=p.x, offset_y=p.y)
+
+        print("sim_result",sim_result)
+
+        offset_x = sim_result[0]
+        offset_y = sim_result[1]
+        page.actions.move_to(ele_or_loc=modal, offset_x=offset_x, offset_y=offset_y)
+        time.sleep(random.uniform(0.6, 1.0))
+        modal.ele('.yidun_bg-img').click.at(offset_x=offset_x, offset_y=offset_y)
 
         # 7. 等待页面渲染结果
         logger.info(f"[{session_id}] 点击完成，等待页面数据渲染...")
