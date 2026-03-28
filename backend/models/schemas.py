@@ -6,9 +6,9 @@ from typing import Optional, List, Dict, Any
 
 class Contest(BaseModel):
     id: Optional[str] = None
+    category: str = "通用比赛"
     name: str
     description: Optional[str] = ""
-
     start_time: Optional[str] = None
     end_time: Optional[str] = None
     status: Optional[str] = "进行中"

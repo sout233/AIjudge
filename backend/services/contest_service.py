@@ -69,6 +69,7 @@ async def save_contest(contest: Contest):
         "action": action,
         "contest_id": contest.id
     }
+
 @router.delete("/contests/{contest_id}")
 async def delete_contest(contest_id: str):
     contests = load_contests()

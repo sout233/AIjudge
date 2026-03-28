@@ -104,6 +104,7 @@ export interface Contest {
   id: string;
   name: string;
   description?: string;
+  category?: string;
   status: 'active' | 'upcoming' | 'ended';  // 新增
   endDate?: string;  // 新增
   participants?: number;  // 新增
