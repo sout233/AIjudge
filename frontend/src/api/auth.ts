@@ -1,4 +1,5 @@
 import client from './client';
+import { useAuthStore } from '@/stores/authStore';
 
 export interface LoginCredentials {
   email: string;
@@ -21,8 +22,7 @@ export const authApi = {
   },
 
   logout: (): void => {
-    localStorage.removeItem('auth_token');
-    localStorage.removeItem('user_info');
+    useAuthStore.getState().clearAuth();
     window.location.href = '/login';
   },
 };

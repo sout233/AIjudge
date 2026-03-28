@@ -13,7 +13,7 @@ export function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const { setAuth } = useAuthStore();
-  
+
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -30,11 +30,9 @@ export function LoginPage() {
 
     try {
       const response = await authApi.login({ email, password });
-      
-      // 保存到 Zustand 和 localStorage
+
       setAuth(response.access_token, { ...response.user, role: (response.user as any).role || 'user' });
-      localStorage.setItem('auth_token', response.access_token);
-      
+
       // 跳转到原目标页面或首页
       navigate(from, { replace: true });
     } catch (err: unknown) {
@@ -51,17 +49,17 @@ export function LoginPage() {
         {/* Logo 区域 */}
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-cyan-500/20 mb-4">
-            <svg 
-              className="w-8 h-8 text-cyan-400" 
-              fill="none" 
-              viewBox="0 0 24 24" 
+            <svg
+              className="w-8 h-8 text-cyan-400"
+              fill="none"
+              viewBox="0 0 24 24"
               stroke="currentColor"
             >
-              <path 
-                strokeLinecap="round" 
-                strokeLinejoin="round" 
-                strokeWidth={2} 
-                d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" 
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
               />
             </svg>
           </div>
@@ -141,7 +139,7 @@ export function LoginPage() {
           </CardContent>
         </Card>
         <div className="mt-6 text-center">
-          <button 
+          <button
             onClick={() => navigate('/')}
             className="text-slate-400 hover:text-white text-sm transition-colors"
           >
@@ -157,7 +155,7 @@ export function LoginPage() {
         </p>
       </footer>
       </div>
-      
+
     </div>
   );
 }
