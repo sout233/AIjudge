@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>AI 联席评审报告 - {{ result.project_name }}</title>
+    <style>
+        @page { size: A4; margin: 2cm; }
+        body { font-family: "Source Han Sans", "Microsoft YaHei", sans-serif; color: #333; line-height: 1.5; background: #fff; }
+        .header { text-align: center; border-bottom: 2px solid #2c3e50; padding-bottom: 20px; margin-bottom: 30px; }
+        .project-name { font-size: 24px; font-weight: bold; color: #2c3e50; margin-bottom: 5px; }
+        .meta { font-size: 12px; color: #7f8c8d; }
+        
+        .section-title { font-size: 18px; font-weight: bold; border-left: 4px solid #3498db; padding-left: 10px; margin: 25px 0 15px; color: #2c3e50; }
+        
+        .score-box { background: #f8f9fa; border-radius: 8px; padding: 20px; text-align: center; margin-bottom: 25px; border: 1px solid #eee; }
+        .big-score { font-size: 48px; font-weight: 900; color: #2ecc71; }
+        .score-label { font-size: 14px; color: #7f8c8d; text-transform: uppercase; letter-spacing: 1px; }
+        
+        .expert-summary-grid { display: block; margin-bottom: 20px; }
+        .expert-card { border: 1px solid #eee; border-radius: 6px; padding: 12px; background: #fff; margin-bottom: 10px; }
+        .expert-tag { font-size: 10px; font-weight: bold; color: #3498db; }
+        .expert-style { font-size: 12px; font-weight: bold; display: block; margin-bottom: 5px; }
+        .expert-score { font-weight: bold; float: right; color: #2c3e50; }
+        
+        .dim-item { margin-bottom: 20px; page-break-inside: avoid; }
+        .dim-header { font-weight: bold; border-bottom: 1px solid #eee; padding-bottom: 5px; margin-bottom: 10px; overflow: hidden; }
+        .point-item { background: #fdfdfd; border: 1px solid #f0f0f0; border-radius: 4px; padding: 10px; margin-bottom: 10px; }
+        .point-name { font-weight: bold; font-size: 14px; color: #34495e; }
+        .point-score { color: #3498db; float: right; }
+        .reason { font-size: 13px; color: #666; margin-top: 5px; }
+        .improve { font-size: 12px; color: #e67e22; background: #fff9f0; padding: 8px; border-left: 2px solid #e67e22; margin-top: 8px; }
+        
+        .footer { text-align: center; font-size: 10px; color: #bdc3c7; margin-top: 50px; border-top: 1px solid #eee; padding-top: 20px; }
+        .page-break { page-break-before: always; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="project-name">{{ result.project_name }}</div>
+        <div class="meta">报告编号: {{ report_id }} | 生成时间: {{ generate_time }}</div>
+        <div style="font-weight: bold; color: #3498db; margin-top: 10px;">智能多专家联席评审协议报告 v2.4</div>
+    </div>
+
+    <div class="score-box">
+        <div class="score-label">核心平均得分 (Consensus Score)</div>
+        <div class="big-score">{{ avg_score }}</div>
+        <div style="font-size: 12px; color: #27ae60;">VALIDATED BY LLM CONSENSUS PROTOCOL</div>
+    </div>
+
+    <div class="section-title">评审共识摘要</div>
+    <div class="expert-summary-grid">
+        {% for ev in result.evaluations %}
+        <div class="expert-card">
+            <span class="expert-score">{{ ev.total_score }}分</span>
+            <div class="expert-tag">专家 {{ ev.judge_tag }}</div>
+            <span class="expert-style">{{ ev.judge_style }}</span>
+            <p style="font-size: 11px; color: #7f8c8d; line-height: 1.3; margin-top: 5px; font-style: italic;">
+                "{{ ev.overall_comment }}"
+            </p>
+        </div>
+        {% endfor %}
+    </div>
+
+    {% for ev in result.evaluations %}
+    <div class="page-break"></div>
+    <div class="section-title">专家 {{ ev.judge_tag }} 详细评审报告 ({{ ev.judge_style }})</div>
+    <div class="score-box" style="padding: 10px; margin-bottom: 15px;">
+        <span style="font-size: 14px; font-weight: bold;">该视角评分：{{ ev.total_score }} / 100</span>
+    </div>
+    
+    <div style="font-size: 14px; color: #34495e; margin-bottom: 20px; padding: 10px; background: #f0f7ff; border-radius: 4px;">
+        <strong>视角总结：</strong>{{ ev.overall_comment }}
+    </div>
+
+    {% for dim in ev.dimensions %}
+    <div class="dim-item">
+        <div class="dim-header">
+            <span style="float: left;">{{ dim.dimension_name }} (权重: {{ (dim.dimension_weight * 100)|round|int }}%)</span>
+            <span style="float: right;">{{ dim.dimension_score }} / {{ dim.dimension_max_score }}</span>
+        </div>
+        {% for pt in dim.points %}
+        <div class="point-item">
+            <div class="point-name">
+                {{ pt.point_name }}
+                <span class="point-score">{{ pt.score }} / {{ pt.max_score }}</span>
+            </div>
+            <div class="reason"><strong>评审观察：</strong>{{ pt.reason }}</div>
+            {% if pt.improve %}
+            <div class="improve"><strong>改进建议：</strong>{{ pt.improve }}</div>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+    {% endfor %}
+    {% endfor %}
+
+    <div class="footer">
+        <p>© 2026 奇创智能评审系统 . Neural Evaluation Protocol</p>
+        <p>本报告由大语言模型模拟多视角独立评审生成，仅供参考。</p>
+    </div>
+</body>
+</html>

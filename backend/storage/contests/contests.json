@@ -1,0 +1,65 @@
+[
+  {
+    "id": "b5cb283c",
+    "category": "人工智能与大数据",
+    "name": "人工智能创新应用大赛",
+    "description": "聚焦 AI 算法在实际场景中的落地应用",
+    "status": "进行中"
+  },
+  {
+    "id": "c9d2e1f0",
+    "category": "人工智能与大数据",
+    "name": "全国大学生数学建模竞赛",
+    "description": "通过数学手段解决工程、管理等领域的实际问题",
+    "status": "进行中"
+  },
+  {
+    "id": "ada1",
+    "category": "人文社科专项",
+    "name": "新文科创新实验大赛",
+    "description": "跨学科背景下的文科科研与实践",
+    "status": "进行中"
+  },
+  {
+    "id": "e3b4a5d6",
+    "category": "人文社科专项",
+    "name": "“外研社·国才杯”英语辩论赛",
+    "description": "高水平英语逻辑思辨与表达",
+    "status": "已截止"
+  },
+  {
+    "id": "f7g8h9i0",
+    "category": "创新创业",
+    "name": "“互联网+”大学生创新创业大赛",
+    "description": "最具影响力的双创赛事，涵盖各行各业",
+    "status": "进行中"
+  },
+  {
+    "id": "k1l2m3n4",
+    "category": "创新创业",
+    "name": "“挑战杯”大学生课外学术科技作品竞赛",
+    "description": "大学生科技奥林匹克，注重学术与科研成果",
+    "status": "进行中"
+  },
+  {
+    "id": "p5q6r7s8",
+    "category": "工程技术",
+    "name": "全国大学生电子设计竞赛",
+    "description": "硬件电路设计、单片机开发与信号处理",
+    "status": "进行中"
+  },
+  {
+    "id": "t9u0v1w2",
+    "category": "工程技术",
+    "name": "蓝桥杯软件和信息技术专业人才大赛",
+    "description": "考察算法实现与软件工程能力",
+    "status": "进行中"
+  },
+  {
+    "id": "x3y4z5a6",
+    "category": "艺术设计",
+    "name": "全国大学生广告艺术大赛",
+    "description": "创意设计、品牌策划与多媒体表达",
+    "status": "进行中"
+  }
+]
