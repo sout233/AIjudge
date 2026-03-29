@@ -50,11 +50,18 @@ export interface JudgeDimension {
   points: JudgePoint[];
 }
 
-export interface JudgeResult {
+export interface SingleEvaluation {
+  judge_tag: string;
+  judge_style: string;
   total_score: number;
   max_score: number;
-  overall_comment: string;
   dimensions: JudgeDimension[];
+  overall_comment: string;
+}
+
+export interface JudgeResult {
+  project_name: string;
+  evaluations: SingleEvaluation[];
 }
 
 export interface WorkflowMessage {
@@ -76,6 +83,11 @@ export interface JudgeStatusResponse {
       };
     };
     messages?: WorkflowMessage[];
+    metadata?: {
+      filename: string;
+      contest_id: string;
+      created_at: string;
+    };
   };
 }
 

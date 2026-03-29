@@ -433,7 +433,7 @@ export function StartPage() {
 
                       {bf.status !== 'idle' && (
                         <div className="space-y-1.5">
-                          <div className="flex justify-between text-[10px] font-mono">
+                          <div className="flex justify-between text-[12px] font-mono">
                             <span className={cn(
                               (bf.status === 'failed' || bf.status === 'error') ? 'text-red-400' :
                               bf.status === 'success' ? 'text-emerald-400' : 'text-blue-400'
@@ -445,7 +445,7 @@ export function StartPage() {
                               {bf.status === 'failed' && (bf.error || '测评失败')}
                               {bf.status === 'error' && '异常中断'}
                             </span>
-                            <span>{bf.progress}%</span>
+                            <span className='text-blue-100'>{bf.progress}%</span>
                           </div>
                           <Progress value={bf.progress} className={cn(
                               "h-1.5 bg-white/5",
@@ -476,7 +476,7 @@ export function StartPage() {
                 </Button>
                 <button
                     onClick={() => { clearBatch(); setContestId(null); }}
-                    className="text-xs text-slate-500 hover:text-slate-300 underline"
+                    className="text-md bg-blue-600 text-slate-500 hover:text-slate-300 underline"
                 >
                     发起新测评
                 </button>
