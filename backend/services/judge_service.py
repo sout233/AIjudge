@@ -4,7 +4,9 @@ import os
 import shutil
 import hashlib
 from datetime import datetime
+from typing import List
 
+from pydantic import BaseModel
 from fastapi import APIRouter, BackgroundTasks, File, HTTPException, UploadFile, Depends
 
 from config import CONTEST_FILE, RESULT_DIR, RULE_DIR, UPLOAD_DIR
@@ -162,6 +164,109 @@ async def judge_file(
         filename=data.filename,
         result_path=f"{workflow_run_id}.json",
     )
+
+
+class BatchJudgeRequest(BaseModel):
+    filenames: List[str]
+    contest_id: str
+
+@router.post("/batch_judge")
+async def batch_judge_files(
+        data: BatchJudgeRequest, background_tasks: BackgroundTasks,
+        current_user_name: str = Depends(get_current_user_name)):
+
+    results = []
+
+    contests = load_contests()
+    contest = next((c for c in contests if c["id"] == data.contest_id), None)
+    if not contest:
+        raise HTTPException(404, "竞赛不存在")
+
+    rule_path = os.path.join(RULE_DIR, f"{data.contest_id}.json")
+    if not os.path.exists(rule_path):
+        raise HTTPException(404, f"该竞赛({data.contest_id})尚未配置评分规则")
+
+    with open(rule_path, "r", encoding="utf-8") as f:
+        raw_json = json.load(f)
+    score_rule_json = json.dumps(raw_json, ensure_ascii=False, separators=(",", ":"))
+
+    for filename in data.filenames:
+        file_path = os.path.join(UPLOAD_DIR, filename)
+        if not os.path.exists(file_path):
+            continue
+
+        workflow_run_id = uuid.uuid4().hex
+        result_path = os.path.join(RESULT_DIR, f"{workflow_run_id}.json")
+
+        with open(result_path, "w", encoding="utf-8") as f:
+            json.dump(
+                {
+                    "status": "running",
+                    "elapsed_time": 0,
+                    "messages": [{"text": "批量任务已创建"}],
+                    "workflow_data": {},
+                    "metadata": {
+                        "contest_id": data.contest_id,
+                        "filename": filename,
+                        "user_name": current_user_name,
+                        "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    }
+                },
+                f,
+                ensure_ascii=False,
+                indent=2,
+            )
+
+        def run_single_task(fid=workflow_run_id, fname=filename, rpath=result_path):
+            try:
+                file_id = upload_file_to_dify(os.path.join(UPLOAD_DIR, fname), fname, current_user_name)
+                result = run_workflow_with_file(file_id, score_rule_json, current_user_name)
+
+                with open(rpath, "w", encoding="utf-8") as f:
+                    json.dump(
+                        {
+                            "status": result.get("status", "success"),
+                            "elapsed_time": result.get("elapsed_time", 0),
+                            "messages": result.get("messages", []),
+                            "workflow_data": result,
+                            "metadata": {
+                                "contest_id": data.contest_id,
+                                "filename": fname,
+                                "user_name": current_user_name,
+                                "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                            }
+                        },
+                        f,
+                        ensure_ascii=False,
+                        indent=2,
+                    )
+            except Exception as e:
+                with open(rpath, "w", encoding="utf-8") as f:
+                    json.dump(
+                        {
+                            "status": "error",
+                            "elapsed_time": 0,
+                            "messages": [{"text": str(e)}],
+                            "workflow_data": {},
+                            "metadata": {
+                                "contest_id": data.contest_id,
+                                "filename": fname,
+                                "user_name": current_user_name,
+                                "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                            }
+                        },
+                        f,
+                        ensure_ascii=False,
+                        indent=2,
+                    )
+
+        background_tasks.add_task(run_single_task)
+        results.append({
+            "workflow_run_id": workflow_run_id,
+            "filename": filename
+        })
+
+    return results
 
 
 # 历史记录

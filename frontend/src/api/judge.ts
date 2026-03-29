@@ -18,6 +18,12 @@ export const judgeApi = {
       filename,
     }),
 
+  submitBatchJudge: (contestId: string, filenames: string[]): Promise<{ workflow_run_id: string; filename: string }[]> =>
+    client.post("/batch_judge", {
+      contest_id: contestId,
+      filenames,
+    }),
+
   getStatus: (workflowRunId: string): Promise<JudgeStatusResponse> =>
     client.get(`/judge/${workflowRunId}/status`),
 
