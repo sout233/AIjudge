@@ -1,4 +1,4 @@
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { createBrowserRouter, RouterProvider, Navigate } from 'react-router-dom';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { queryClient } from '@/lib/queryClient';
 import { ProtectedRoute, PublicOnlyRoute } from '@/components/ProtectedRoute';
@@ -14,45 +14,71 @@ import { AdminLayout } from '@/pages/admin/AdminLayout';
 import { ContestManagement } from '@/pages/admin/ContestManagement';
 import { AnnouncementManagement } from '@/pages/admin/AnnouncementManagement';
 import { RuleManagement } from '@/pages/admin/RuleManagement';
+
+const router = createBrowserRouter([
+  {
+    path: "/",
+    element: <HomePage />,
+  },
+  {
+    path: "/contests",
+    element: <LandingPage />,
+  },
+  {
+    path: "/result/:workflowRunId",
+    element: <ResultPage />,
+  },
+  {
+    path: "/check-certificate",
+    element: <CheckCertificatePage />,
+  },
+  {
+    element: <PublicOnlyRoute />,
+    children: [
+      {
+        path: "/login",
+        element: <LoginPage />,
+      }
+    ]
+  },
+  {
+    element: <ProtectedRoute />,
+    children: [
+      {
+        path: "/judge",
+        element: <StartPage />,
+      },
+      {
+        path: "/history",
+        element: <HistoryPage />,
+      }
+    ]
+  },
+  {
+    element: <AdminGuard />,
+    children: [
+      {
+        path: "/admin",
+        element: <AdminLayout />,
+        children: [
+          { index: true, element: <Navigate to="/admin/contests" replace /> },
+          { path: "contests", element: <ContestManagement /> },
+          { path: "announcements", element: <AnnouncementManagement /> },
+          { path: "rules", element: <RuleManagement /> },
+        ]
+      }
+    ]
+  },
+  {
+    path: "*",
+    element: <Navigate to="/" />,
+  }
+]);
+
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <Routes>
-        {/* 主首页：展示系统介绍和核心功能 */}
-        <Route path="/" element={<HomePage />} />
-        
-        {/* 竞赛列表页：展示竞赛列表和公告 */}
-        <Route path="/contests" element={<LandingPage />} />
-        
-        {/* 公开结果页：查看评审结果（本地存储） */}
-        <Route path="/result/:workflowRunId" element={<ResultPage />} />
-        
-        {/* 证书核验页：公开访问 */}
-        <Route path="/check-certificate" element={<CheckCertificatePage />} />
-
-        {/* 登录页：已登录用户不能访问 */}
-        <Route element={<PublicOnlyRoute />}>
-          <Route path="/login" element={<LoginPage />} />
-        </Route>
-
-        {/* 受保护路由：必须登录 */}
-        <Route element={<ProtectedRoute />}>
-          <Route path="/judge" element={<StartPage />} />
-          <Route path="/history" element={<HistoryPage />} />
-        </Route>
-
-        {/* 管理员路由：必须 admin/owner */}
-        <Route element={<AdminGuard />}>
-          <Route path="/admin" element={<AdminLayout />}>
-            <Route index element={<Navigate to="/admin/contests" replace />} />
-            <Route path="contests" element={<ContestManagement />} />
-            <Route path="announcements" element={<AnnouncementManagement />} />
-            <Route path="rules" element={<RuleManagement />} />
-          </Route>
-        </Route>
-
-        <Route path="*" element={<Navigate to="/" />} />
-      </Routes>
+      <RouterProvider router={router} />
     </QueryClientProvider>
   );
 }
