@@ -3,6 +3,11 @@ export interface Contest {
   id: string;
   name: string;
   description?: string;
+  status?: string;
+  endDate: string;
+  participants: string;
+  submissions: string;
+  category: string;
 }
 
 // Announcement types
@@ -83,6 +88,15 @@ export interface SubmitResponse {
 }
 
 // History types
+export interface JudgeHistory {
+  workflow_run_id: string;
+  filename: string;
+  contest_id: string;
+  status: string;
+  created_at: string;
+  elapsed_time: number;
+}
+
 export interface HistoryRecord {
   id: string;
   filename: string;
@@ -100,17 +114,6 @@ export interface ApiError {
   message: string;
 }
 // src/types/index.ts
-export interface Contest {
-  id: string;
-  name: string;
-  description?: string;
-  category?: string;
-  status: 'active' | 'upcoming' | 'ended';  // 新增
-  endDate?: string;  // 新增
-  participants?: number;  // 新增
-  submissions?: number;  // 新增
-}
-
 export interface User {
   email: string;
   dify_user_id: string;

@@ -117,13 +117,31 @@ export function HomePage() {
                     欢迎，{user?.email?.split('@')[0]}
                   </span>
                   <Button 
+                    variant="ghost" 
+                    size="sm"
+                    onClick={() => navigate('/history')}
+                    className="text-slate-400 hover:text-cyan-400"
+                  >
+                    测评历史
+                  </Button>
+                  <Button 
                     variant="outline" 
                     size="sm"
-                    onClick={() => navigate('/admin/contests')}
-                    className="border-slate-700 text-slate-300 hover:bg-slate-800"
+                    onClick={() => navigate('/judge')}
+                    className="border-cyan-600 text-cyan-400 hover:bg-cyan-950"
                   >
-                    管理后台
+                    开始评审
                   </Button>
+                  {(user?.role === 'admin' || user?.role === 'owner') && (
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => navigate('/admin/contests')}
+                      className="border-slate-700 text-slate-300 hover:bg-slate-800"
+                    >
+                      管理后台
+                    </Button>
+                  )}
                 </>
               ) : (
                 <Button 

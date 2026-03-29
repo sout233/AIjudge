@@ -8,6 +8,7 @@ import { LandingPage } from '@/pages/LandingPage';  // 竞赛列表页
 import { HomePage } from '@/pages/HomePage';  // 主首页
 import { StartPage } from '@/pages/StartPage';
 import { ResultPage } from '@/pages/ResultPage';
+import { HistoryPage } from '@/pages/HistoryPage';
 import { CheckCertificatePage } from '@/pages/CheckCertificatePage';
 import { AdminLayout } from '@/pages/admin/AdminLayout';
 import { ContestManagement } from '@/pages/admin/ContestManagement';
@@ -37,6 +38,7 @@ function App() {
         {/* 受保护路由：必须登录 */}
         <Route element={<ProtectedRoute />}>
           <Route path="/judge" element={<StartPage />} />
+          <Route path="/history" element={<HistoryPage />} />
         </Route>
 
         {/* 管理员路由：必须 admin/owner */}

@@ -21,6 +21,8 @@ export const judgeApi = {
   getStatus: (workflowRunId: string): Promise<JudgeStatusResponse> =>
     client.get(`/judge/${workflowRunId}/status`),
 
+  getHistory: (): Promise<any[]> => client.get("/history"),
+
   getMock: (): Promise<SubmitResponse> => client.get("/judge/mock"),
 
   downloadPdf: (workflowRunId: string): Promise<Blob> =>

@@ -1,17 +1,18 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { 
-  Trophy, 
-  Calendar, 
-  Users, 
-  ChevronRight, 
-  LogIn, 
+import {
+  Trophy,
+  Calendar,
+  Users,
+  ChevronRight,
+  LogIn,
   FileText,
   Bell,
   MapPin,
-  Shield
-} 
+  Shield,
+  History
+}
 from 'lucide-react';
 import { adminApi } from '@/api/admin';
 import { useAuthStore } from '@/stores/authStore';
@@ -74,8 +75,17 @@ export function LandingPage() {
                 <span className="text-sm text-slate-600 hidden sm:block">
                   {user?.email}
                 </span>
-                <Button 
-                  size="sm" 
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => navigate('/history')}
+                  className="text-slate-600 hover:text-cyan-600"
+                >
+                  <History className="w-4 h-4 mr-2" />
+                  测评历史
+                </Button>
+                <Button
+                  size="sm"
                   onClick={() => navigate('/judge')}
                   className="bg-cyan-600 hover:bg-cyan-700"
                 >
@@ -83,8 +93,8 @@ export function LandingPage() {
                   开始评审
                 </Button>
                 {(user?.role === 'admin' || user?.role === 'owner') && (
-                  <Button 
-                    variant="outline" 
+                  <Button
+                    variant="outline"
                     size="sm"
                     onClick={() => navigate('/admin')}
                   >
@@ -93,8 +103,8 @@ export function LandingPage() {
                 )}
               </div>
             ) : (
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 size="sm"
                 onClick={() => navigate('/login')}
               >
@@ -118,25 +128,25 @@ export function LandingPage() {
               公正、高效、智能化的文档评审服务。
             </p>
             <div className="flex gap-4">
-              <Button 
-                size="lg" 
+              <Button
+                size="lg"
                 onClick={() => navigate('/judge')}
                 className="bg-cyan-500 hover:bg-cyan-600 text-slate-900 font-semibold"
               >
                 立即参与
                 <ChevronRight className="w-5 h-5 ml-1" />
               </Button>
-              <Button 
-                size="lg" 
-                variant="outline" 
+              <Button
+                size="lg"
+                variant="outline"
                 onClick={() => document.getElementById('contests')?.scrollIntoView({ behavior: 'smooth' })}
                 className="border-slate-400 text-slate-200 hover:bg-slate-800"
               >
                 查看竞赛
               </Button>
               {/* 新增次要按钮：证书鉴伪入口 */}
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 size="lg"
                 onClick={() => navigate('/check-certificate')}
                 className="h-14 px-8 text-lg border-emerald-500/50 text-emerald-400 hover:bg-emerald-500/10 hover:border-emerald-500 transition-all"
@@ -165,8 +175,8 @@ export function LandingPage() {
           </div>
 
           <TabsContent value="active" className="mt-0">
-            <ContestGrid 
-              contests={activeContests} 
+            <ContestGrid
+              contests={activeContests}
               isLoading={isLoading}
               onSelect={setSelectedContest}
               selectedId={selectedContest?.id}
@@ -174,8 +184,8 @@ export function LandingPage() {
           </TabsContent>
 
           <TabsContent value="upcoming" className="mt-0">
-            <ContestGrid 
-              contests={upcomingContests} 
+            <ContestGrid
+              contests={upcomingContests}
               isLoading={isLoading}
               onSelect={setSelectedContest}
               selectedId={selectedContest?.id}
@@ -183,8 +193,8 @@ export function LandingPage() {
           </TabsContent>
 
           <TabsContent value="all" className="mt-0">
-            <ContestGrid 
-              contests={contests} 
+            <ContestGrid
+              contests={contests}
               isLoading={isLoading}
               onSelect={setSelectedContest}
               selectedId={selectedContest?.id}
@@ -204,8 +214,8 @@ export function LandingPage() {
                     <p className="text-slate-500 mt-2">{selectedContest.description}</p>
                   </div>
                   <Badge className={
-                    selectedContest.status === 'active' 
-                      ? 'bg-green-100 text-green-700' 
+                    selectedContest.status === 'active'
+                      ? 'bg-green-100 text-green-700'
                       : 'bg-amber-100 text-amber-700'
                   }>
                     {selectedContest.status === 'active' ? '进行中' : '即将开始'}
@@ -238,7 +248,7 @@ export function LandingPage() {
                 </div>
 
                 <div className="flex gap-3 pt-4">
-                  <Button 
+                  <Button
                     className="flex-1 bg-cyan-600 hover:bg-cyan-700"
                     onClick={() => navigate('/judge', { state: { contestId: selectedContest.id } })}
                   >
@@ -365,7 +375,7 @@ export function LandingPage() {
               </div>
             </div>
           </div>
-          
+
           <div className="border-t border-slate-800 pt-8 text-center">
             <footer className="text-[9px] text-slate-500 mt-2">
               鄂ICP备2026012182号-1
@@ -378,12 +388,12 @@ export function LandingPage() {
 }
 
 // 子组件：竞赛网格
-function ContestGrid({ 
-  contests, 
-  isLoading, 
-  onSelect, 
-  selectedId 
-}: { 
+function ContestGrid({
+  contests,
+  isLoading,
+  onSelect,
+  selectedId
+}: {
   contests: Contest[];
   isLoading: boolean;
   onSelect: (c: Contest) => void;
@@ -411,7 +421,7 @@ function ContestGrid({
   return (
     <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
       {contests.map((contest) => (
-        <Card 
+        <Card
           key={contest.id}
           className={`cursor-pointer transition-all hover:shadow-lg ${
             selectedId === contest.id ? 'ring-2 ring-cyan-500' : ''

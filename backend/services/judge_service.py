@@ -3,6 +3,7 @@ import json
 import os
 import shutil
 import hashlib
+from datetime import datetime
 
 from fastapi import APIRouter, BackgroundTasks, File, HTTPException, UploadFile, Depends
 
@@ -28,7 +29,7 @@ async def upload_file(file: UploadFile = File(...)):
     # 读取文件内容计算哈希
     content = await file.read()
     file_hash = hashlib.md5(content).hexdigest()
-    
+
     ext = os.path.splitext(file.filename)[1]
     filename = f"{file_hash}{ext}"
     path = os.path.join(UPLOAD_DIR, filename)
@@ -73,13 +74,13 @@ async def judge_file(
     rule_path = os.path.join(RULE_DIR, f"{data.contest_id}.json")
     if not os.path.exists(rule_path):
         raise HTTPException(404, "该竞赛尚未配置评分规则")
-        
+
     # 查重
     print(f"[JudgeService] calling check_duplication for {data.filename}")
     is_dup, dup_file, similarity = check_duplication(data.contest_id, data.filename)
     if is_dup:
         raise HTTPException(
-            400, 
+            400,
             detail=f"检测到内容重复，与文件 '{dup_file}' 的相似度为 {similarity:.2%}，拒绝评分"
         )
 
@@ -100,7 +101,9 @@ async def judge_file(
                 "workflow_data": {},
                 "metadata": {
                     "contest_id": data.contest_id,
-                    "filename": data.filename
+                    "filename": data.filename,
+                    "user_name": current_user_name,
+                    "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 }
             },
             f,
@@ -122,7 +125,9 @@ async def judge_file(
                         "workflow_data": result,
                         "metadata": {
                             "contest_id": data.contest_id,
-                            "filename": data.filename
+                            "filename": data.filename,
+                            "user_name": current_user_name,
+                            "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                         }
                     },
                     f,
@@ -140,7 +145,9 @@ async def judge_file(
                         "workflow_data": {},
                         "metadata": {
                             "contest_id": data.contest_id,
-                            "filename": data.filename
+                            "filename": data.filename,
+                            "user_name": current_user_name,
+                            "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                         }
                     },
                     f,
@@ -155,6 +162,43 @@ async def judge_file(
         filename=data.filename,
         result_path=f"{workflow_run_id}.json",
     )
+
+
+# 历史记录
+@router.get("/history")
+async def get_history(current_user_name: str = Depends(get_current_user_name)):
+    """
+    获取当前用户的测评历史列表
+    """
+    history = []
+    if not os.path.exists(RESULT_DIR):
+        return []
+
+    for filename in os.listdir(RESULT_DIR):
+        if not filename.endswith(".json"):
+            continue
+
+        path = os.path.join(RESULT_DIR, filename)
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                metadata = data.get("metadata", {})
+
+                if metadata.get("user_name") == current_user_name:
+                    history.append({
+                        "workflow_run_id": filename.replace(".json", ""),
+                        "filename": metadata.get("filename"),
+                        "contest_id": metadata.get("contest_id"),
+                        "status": data.get("status"),
+                        "created_at": metadata.get("created_at"),
+                        "elapsed_time": data.get("elapsed_time")
+                    })
+        except Exception as e:
+            print(f"Error reading {filename}: {e}")
+            continue
+
+    history.sort(key=lambda x: x.get("created_at", ""), reverse=True)
+    return history
 
 
 # ================= 状态轮询 =================
