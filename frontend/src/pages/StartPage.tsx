@@ -178,7 +178,7 @@ export function StartPage() {
             <ArrowLeft className="mr-2 h-4 w-4" />
             返回中心
           </Button>
-          <div className="flex items-center gap-4">
+          <div className="flex">
             <Button
                 variant="ghost"
                 size="sm"
@@ -188,10 +188,6 @@ export function StartPage() {
                 <History className="mr-2 h-4 w-4" />
                 查看历史
             </Button>
-            <div className="flex items-center gap-2 text-xs font-mono text-primary animate-pulse">
-                <Cpu className="h-3 w-3" />
-                SYSTEM READY // AI_CORE_ONLINE
-            </div>
           </div>
         </div>
 
