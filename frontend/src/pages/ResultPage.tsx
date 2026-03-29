@@ -313,7 +313,7 @@ export function ResultPage() {
               <div className="absolute inset-0 bg-primary/30 blur-[60px] rounded-full animate-pulse" />
               <Loader2 className="h-16 w-16 animate-spin text-primary relative" />
             </div>
-            <p className="text-slate-400 mt-10 font-mono tracking-[0.5em] uppercase text-xs animate-pulse">Synchronizing Neural Core Results...</p>
+            <p className="text-slate-400 mt-10 font-mono tracking-[0.5em] uppercase text-xs animate-pulse">正在测评中...</p>
           </div>
         ) : (status === 'error' || status === 'failed') ? (
           <div className="py-20">
@@ -321,11 +321,11 @@ export function ResultPage() {
               <XCircle className="h-8 w-8 mb-4" />
               <AlertTitle className="text-2xl font-black mb-4 uppercase tracking-tighter">System Engine Interrupted</AlertTitle>
               <AlertDescription className="text-sm opacity-80 leading-relaxed font-normal">
-                分析引擎在处理神经元回传数据时遇到了不可恢复的致命冲突。这通常由非标文档格式、严重的数据损坏或AI核心节点负载过高导致。
+                分析引擎在处理回传数据时遇到了不可恢复的致命冲突。这通常由非标文档格式、严重的数据损坏或AI核心节点负载过高导致。
                 请检查控制台获取详细错误代码，并尝试重新提交。
               </AlertDescription>
-              <Button onClick={() => navigate('/judge')} className="mt-8 bg-red-600 hover:bg-red-500 text-white font-bold px-8">RETRY_SUBMISSION</Button>
-            </Alert>
+              <Button onClick={() => navigate('/judge')} className="mt-8 bg-red-600 hover:bg-red-500 text-white font-bold px-8">返回</Button>
+            </Alert>RETRY_SUBMISSION
           </div>
         ) : null}
       </div>
