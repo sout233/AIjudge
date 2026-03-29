@@ -1,5 +1,5 @@
 import { useRef, useEffect, useState, useMemo } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import {
   Download,
   FileText,
@@ -10,7 +10,13 @@ import {
   User,
   BarChart3,
   LayoutDashboard,
-  CheckCircle2
+  CheckCircle2,
+  ArrowLeft,
+  Cpu,
+  Sparkles,
+  ExternalLink,
+  Target,
+  Trophy
 } from 'lucide-react';
 import { useJudgePolling } from '@/hooks/useJudgePolling';
 import { judgeApi } from '@/api/judge';
@@ -20,10 +26,12 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { cn } from '@/lib/utils';
 import type { SingleEvaluation, JudgeDimension, JudgePoint } from '@/types';
 
 export function ResultPage() {
   const { workflowRunId } = useParams<{ workflowRunId: string }>();
+  const navigate = useNavigate();
   const scrollBoxRef = useRef<HTMLDivElement>(null);
   const [downloading, setDownloading] = useState(false);
   const [activeTab, setActiveTab] = useState("summary");
@@ -36,14 +44,14 @@ export function ResultPage() {
     }
   }, [progressText]);
 
-  const getStatusBadgeVariant = () => {
+  const getStatusBadgeClass = () => {
     switch (status) {
-      case 'running': return 'secondary';
+      case 'running': return 'bg-blue-500/20 text-blue-400 border-blue-500/30';
       case 'succeeded':
-      case 'success': return 'default';
+      case 'success': return 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30';
       case 'error':
-      case 'failed': return 'destructive';
-      default: return 'outline';
+      case 'failed': return 'bg-red-500/20 text-red-400 border-red-500/30';
+      default: return 'bg-slate-500/20 text-slate-400 border-slate-500/30';
     }
   };
 
@@ -67,7 +75,6 @@ export function ResultPage() {
     }
   };
 
-  // 计算平均分
   const averageScore = useMemo(() => {
     if (!result?.evaluations?.length) return 0;
     const total = result.evaluations.reduce((acc, curr) => acc + curr.total_score, 0);
@@ -75,135 +82,156 @@ export function ResultPage() {
   }, [result]);
 
   return (
-    <div className='bg-slate-950'>
-      <div className="max-w-6xl mx-auto space-y-6 pb-20 bg-slate-950">
-        {/* Top Header */}
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-2xl relative overflow-hidden group">
-          <div className="absolute top-0 right-0 w-64 h-64 bg-cyan-500/5 blur-3xl rounded-full -translate-y-1/2 translate-x-1/2 group-hover:bg-cyan-500/10 transition-colors" />
+    <div className="min-h-screen bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900 via-slate-950 to-black text-slate-200 relative overflow-hidden px-4 pb-20">
+      {/* Background Decor */}
+      <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 pointer-events-none"></div>
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-full bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:40px_40px] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_100%)]"></div>
 
-          <div className="relative flex flex-col md:flex-row md:items-center justify-between gap-6">
-            <div className="space-y-2">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-cyan-500/10 text-cyan-400">
-                  <LayoutDashboard className="w-5 h-5" />
-                </div>
-                <h2 className="text-2xl font-bold text-white tracking-tight">
-                  {result?.project_name || "测评详情报告"}
-                </h2>
-              </div>
-              <p className="text-slate-400 text-sm flex items-center gap-2">
-                <span className="font-mono text-xs opacity-50">RUN_ID: {workflowRunId}</span>
-                <span className="w-1 h-1 rounded-full bg-slate-700" />
-                <span>智能多专家评审系统 v2.0</span>
-              </p>
-            </div>
-
-            <div className="flex items-center gap-4">
-              <Badge variant={getStatusBadgeVariant()} className="h-8 px-4 rounded-full font-semibold border-none shadow-lg">
-                {status === 'running' && <Loader2 className="mr-2 h-3 w-3 animate-spin inline" />}
-                {statusText}
-              </Badge>
-
-              {result && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={downloadPdf}
-                  disabled={downloading}
-                  className="bg-slate-800 border-slate-700 hover:bg-slate-700 text-slate-200"
-                >
-                  {downloading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  <Download className="w-4 h-4 mr-2" />
-                  导出 PDF
-                </Button>
-              )}
-            </div>
+      <div className="max-w-6xl mx-auto space-y-8 pt-8 relative z-10">
+        {/* Header Navigation */}
+        <div className="flex items-center justify-between">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => navigate(-1)}
+            className="text-slate-400 hover:text-white hover:bg-white/10 backdrop-blur-md border border-white/5"
+          >
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            返回列表
+          </Button>
+          <div className="flex items-center gap-2 text-xs font-mono text-primary animate-pulse">
+            <Cpu className="h-3 w-3" />
+            DATA_STREAM // ANALYSIS_COMPLETE
           </div>
         </div>
 
-        {/* Terminal Logs */}
-        {(status !== 'succeeded' && status !== 'success') && (
-          <div className="bg-[#0f172a] border border-slate-800 rounded-xl shadow-2xl overflow-hidden ring-1 ring-slate-800">
-            <div className="bg-slate-800/50 px-4 py-2 border-b border-slate-700 flex items-center justify-between">
-              <span className="text-xs font-mono text-slate-400">NEURAL_NETWORK_STREAM</span>
-              <div className="flex gap-1.5">
-                <div className="w-2.5 h-2.5 rounded-full bg-red-500/20" />
-                <div className="w-2.5 h-2.5 rounded-full bg-amber-500/20" />
-                <div className="w-2.5 h-2.5 rounded-full bg-emerald-500/20" />
+        {/* Main Report Header */}
+        <Card className="bg-slate-900/40 backdrop-blur-2xl border-white/10 shadow-2xl overflow-hidden relative group">
+          <div className="absolute top-0 right-0 w-96 h-96 bg-primary/10 blur-[100px] rounded-full -translate-y-1/2 translate-x-1/2" />
+          <CardHeader className="relative z-10 p-8 pb-6">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+              <div className="space-y-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-2xl bg-primary/20 border border-primary/50 flex items-center justify-center text-primary shadow-[0_0_20px_rgba(59,130,246,0.3)]">
+                    <Trophy className="w-6 h-6 stroke-blue-50" />
+                  </div>
+                  <div>
+                    <h2 className="text-3xl font-black text-white tracking-tight italic uppercase">
+                        {result?.project_name || "测评详情报告"}
+                    </h2>
+                    <div className="flex items-center gap-3 mt-1">
+                        <span className="text-[12px] font-mono text-slate-500 uppercase tracking-widest">ID: {workflowRunId?.slice(0, 12)}...</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-4">
+                <Badge className={cn("h-8 px-4 rounded-full font-bold uppercase tracking-widest text-[12px] border", getStatusBadgeClass())}>
+                  {status === 'running' && <Loader2 className="mr-2 h-3 w-3 animate-spin" />}
+                  {statusText}
+                </Badge>
+
+                {result && (
+                  <Button
+                    onClick={downloadPdf}
+                    disabled={downloading}
+                    className="h-10 px-6 bg-primary hover:bg-blue-400 text-white font-black uppercase tracking-widest text-[12px] shadow-[0_0_20px_rgba(59,130,246,0.3)]"
+                  >
+                    {downloading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="w-4 h-4 mr-2" />}
+                    导出PDF
+                  </Button>
+                )}
               </div>
             </div>
-            <div
-              className="h-48 overflow-y-auto px-6 py-4 font-mono text-sm leading-relaxed text-cyan-500/80 custom-scrollbar"
-              ref={scrollBoxRef}
-            >
-              {!progressText ? (
-                <div className="flex items-center gap-3 animate-pulse text-slate-600">
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>初始化分析引擎，等待核心输出...</span>
+          </CardHeader>
+        </Card>
+
+        {/* Processing Logs */}
+        {(status !== 'succeeded' && status !== 'success') && (
+            <Card className="bg-black/60 backdrop-blur-xl border-white/5 shadow-2xl overflow-hidden font-mono">
+                <div className="bg-white/5 px-4 py-2 border-b border-white/5 flex items-center justify-between">
+                    <span className="text-[12px] text-slate-500 uppercase tracking-[0.2em]">Neural_Processing_Stream</span>
+                    <div className="flex gap-1">
+                        <div className="w-2 h-2 rounded-full bg-red-500/40" />
+                        <div className="w-2 h-2 rounded-full bg-amber-500/40" />
+                        <div className="w-2 h-2 rounded-full bg-emerald-500/40" />
+                    </div>
                 </div>
-              ) : (
-                <pre className="whitespace-pre-wrap">{progressText}</pre>
-              )}
-            </div>
-          </div>
+                <div className="h-40 overflow-y-auto p-6 text-sm text-primary/80 leading-relaxed custom-scrollbar" ref={scrollBoxRef}>
+                    {!progressText ? (
+                        <div className="flex items-center gap-3 animate-pulse">
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                            <span className="uppercase tracking-widest text-xs">Initializing Analysis Engine...</span>
+                        </div>
+                    ) : (
+                        <pre className="whitespace-pre-wrap">{progressText}</pre>
+                    )}
+                </div>
+            </Card>
         )}
 
-        {/* Main Results */}
+        {/* Content Tabs */}
         {result ? (
-          <Tabs defaultValue="summary" className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700" onValueChange={setActiveTab}>
-            <div className="flex items-center justify-between">
-              <TabsList className="bg-slate-900 border border-slate-800 p-1 rounded-xl">
-                <TabsTrigger value="summary" className="rounded-lg data-[state=active]:bg-cyan-600 data-[state=active]:text-white transition-all">
+          <Tabs defaultValue="summary" className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700" onValueChange={setActiveTab}>
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <TabsList className="bg-slate-900/50 backdrop-blur-md border border-white/10 p-1 h-12 rounded-2xl">
+                <TabsTrigger value="summary" className="rounded-xl px-6 h-full data-[state=active]:bg-primary data-[state=active]:text-white font-bold uppercase tracking-widest text-[12px] transition-all">
                   <BarChart3 className="w-4 h-4 mr-2" />
                   综合概览
                 </TabsTrigger>
                 {result.evaluations.map((ev: SingleEvaluation) => (
-                  <TabsTrigger key={ev.judge_tag} value={ev.judge_tag} className="rounded-lg data-[state=active]:bg-cyan-600 data-[state=active]:text-white transition-all">
+                  <TabsTrigger key={ev.judge_tag} value={ev.judge_tag} className="rounded-xl px-6 h-full data-[state=active]:bg-primary data-[state=active]:text-white font-bold uppercase tracking-widest text-[12px] transition-all">
                     <User className="w-4 h-4 mr-2" />
                     专家 {ev.judge_tag}
                   </TabsTrigger>
                 ))}
               </TabsList>
 
-              <div className="hidden md:flex items-center gap-3 text-sm text-slate-500 font-mono">
-                <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]" />
-                VALIDATED_BY_LLM_PROTOCOL
+              <div className="flex items-center gap-3 px-4 py-2 rounded-full bg-white/5 border border-white/5 backdrop-blur-sm text-[12px] font-mono text-slate-500 uppercase tracking-widest font-bold">
+                <CheckCircle2 className="w-3 h-3 text-emerald-500" />
+                <p className='font-bold'>综合测评已完成</p>
               </div>
             </div>
 
-            <TabsContent value="summary" className="space-y-6 outline-none">
+            {/* Summary View */}
+            <TabsContent value="summary" className="space-y-8 outline-none">
               <div className="grid md:grid-cols-4 gap-6">
-                {/* Total Average Score */}
-                <Card className="md:col-span-1 bg-slate-900 border-slate-800 shadow-xl overflow-hidden relative">
-                  <div className="absolute inset-0 bg-gradient-to-b from-cyan-500/10 to-transparent" />
-                  <CardHeader className="text-center relative z-10 pb-2">
-                    <CardTitle className="text-xs font-black uppercase tracking-widest text-cyan-500/60">平均分</CardTitle>
+                {/* Score Card */}
+                <Card className="md:col-span-1 bg-slate-900/40 backdrop-blur-xl border-white/10 shadow-2xl overflow-hidden relative group">
+                  <div className="absolute inset-0 bg-gradient-to-b from-primary/20 to-transparent opacity-50" />
+                  <CardHeader className="text-center pb-2 relative z-10">
+                    <CardTitle className="text-[12px] font-black uppercase tracking-[0.3em] text-primary/80 text-white">核心平均分</CardTitle>
                   </CardHeader>
-                  <CardContent className="text-center relative z-10">
-                    <div className="text-7xl font-black text-white tracking-tighter drop-shadow-[0_0_15px_rgba(255,255,255,0.2)]">
+                  <CardContent className="text-center pb-10 relative z-10">
+                    <div className="text-8xl font-black text-white tracking-tighter drop-shadow-[0_0_20px_rgba(255,255,255,0.3)]">
                       {averageScore}
                     </div>
-                    <div className="text-slate-500 font-mono text-sm mt-1">/ 100 PTS</div>
-                    <div className="mt-6 flex items-center justify-center gap-2 text-emerald-400 bg-emerald-400/10 py-1.5 px-3 rounded-full text-[10px] font-bold uppercase tracking-wider">
-                      <CheckCircle2 className="w-3 h-3" />
-                      测评已通过
+                    <div className="mt-8 py-2 px-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-[12px] font-black uppercase tracking-widest inline-flex items-center gap-2">
+                        <Sparkles className="w-3 h-3" />
+                        已量化结果
                     </div>
                   </CardContent>
                 </Card>
 
-                {/* Individual Scores Grid */}
+                {/* Judge Quick Cards */}
                 <div className="md:col-span-3 grid grid-cols-1 sm:grid-cols-3 gap-4">
                   {result.evaluations.map((ev: SingleEvaluation) => (
-                    <Card key={ev.judge_tag} className="bg-slate-900/50 border-slate-800 hover:border-slate-700 transition-colors group cursor-pointer" onClick={() => setActiveTab(ev.judge_tag)}>
+                    <Card
+                        key={ev.judge_tag}
+                        className="bg-slate-900/30 backdrop-blur-md border-white/5 hover:border-primary/50 transition-all duration-500 group cursor-pointer relative overflow-hidden"
+                        onClick={() => setActiveTab(ev.judge_tag)}
+                    >
+                      <div className="absolute top-0 left-0 w-1 h-full bg-primary/20 group-hover:bg-primary transition-colors" />
                       <CardHeader className="pb-3">
-                        <div className="flex justify-between items-center">
-                          <Badge variant="outline" className="border-cyan-500/30 text-cyan-400 bg-cyan-500/5">专家 {ev.judge_tag}</Badge>
-                          <span className="text-xl font-bold text-white group-hover:text-cyan-400 transition-colors">{ev.total_score}</span>
+                        <div className="flex justify-between items-center mb-2 text-white">
+                          <span className="text-xl font-black text-primary uppercase tracking-[0.2em] text-white">测评 {ev.judge_tag}</span>
+                          <span className="text-2xl font-black text-white group-hover:text-primary transition-colors">{ev.total_score}</span>
                         </div>
-                        <CardTitle className="text-sm font-semibold text-slate-300 mt-2">{ev.judge_style}</CardTitle>
+                        <CardTitle className="text-sm font-bold text-slate-300">{ev.judge_style}</CardTitle>
                       </CardHeader>
                       <CardContent>
-                        <p className="text-xs text-slate-500 line-clamp-3 leading-relaxed italic">
+                        <p className="text-sm text-slate-200 leading-relaxed italic line-clamp-4">
                           "{ev.overall_comment}"
                         </p>
                       </CardContent>
@@ -212,68 +240,66 @@ export function ResultPage() {
                 </div>
               </div>
 
-              {/* Overall Comments Combined */}
-              <div className="grid md:grid-cols-1 gap-6">
-                  <Card className="bg-slate-900 border-slate-800">
-                      <CardHeader>
-                          <CardTitle className="text-lg flex items-center gap-2 text-white">
-                              <Users className="w-5 h-5 text-cyan-400" />
-                              多专家联席评审总结
-                          </CardTitle>
-                          <CardDescription>汇总自三位独立视角的专业评审意见</CardDescription>
-                      </CardHeader>
-                      <CardContent className="grid md:grid-cols-3 gap-8">
-                          {result.evaluations.map((ev: SingleEvaluation) => (
-                              <div key={ev.judge_tag} className="space-y-3">
-                                  <div className="flex items-center gap-2 border-b border-slate-800 pb-2">
-                                      <div className="w-6 h-6 rounded bg-slate-800 flex items-center justify-center text-[10px] font-bold text-cyan-400">
-                                          {ev.judge_tag}
-                                      </div>
-                                      <span className="text-xs font-bold text-slate-300 uppercase tracking-wider">{ev.judge_style}</span>
+              {/* Consensus Summary */}
+              <Card className="bg-slate-900/40 backdrop-blur-xl border-white/10 shadow-2xl">
+                  <CardHeader>
+                      <CardTitle className="text-lg flex items-center gap-3 text-white uppercase tracking-tighter">
+                          <Users className="w-5 h-5 text-primary" />
+                          多维专家共识报告摘要
+                      </CardTitle>
+                  </CardHeader>
+                  <CardContent className="grid md:grid-cols-3 gap-8 pt-4">
+                      {result.evaluations.map((ev: SingleEvaluation) => (
+                          <div key={ev.judge_tag} className="space-y-4 p-4 rounded-2xl bg-white/5 border border-white/5 hover:bg-white/10 transition-colors">
+                              <div className="flex items-center gap-3 border-b border-white/5 pb-3">
+                                  <div className="w-8 h-8 rounded-lg bg-slate-800 flex items-center justify-center text-xs font-black text-primary">
+                                      {ev.judge_tag}
                                   </div>
-                                  <p className="text-sm text-slate-400 leading-relaxed text-justify">
-                                      {ev.overall_comment}
-                                  </p>
+                                  <div>
+                                    <span className="text-[12px] font-black text-white uppercase tracking-widest block">{ev.judge_style}</span>
+                                  </div>
                               </div>
-                          ))}
-                      </CardContent>
-                  </Card>
-              </div>
+                              <p className="text-[12px] text-slate-400 leading-relaxed text-justify">
+                                  {ev.overall_comment}
+                              </p>
+                          </div>
+                      ))}
+                  </CardContent>
+              </Card>
             </TabsContent>
 
+            {/* Expert Detail View */}
             {result.evaluations.map((ev: SingleEvaluation) => (
-              <TabsContent key={ev.judge_tag} value={ev.judge_tag} className="space-y-6 outline-none">
-                {/* Expert Info Header */}
+              <TabsContent key={ev.judge_tag} value={ev.judge_tag} className="space-y-8 outline-none">
                 <div className="grid md:grid-cols-4 gap-6">
-                  <Card className="md:col-span-1 bg-slate-900 border-slate-800">
-                      <CardContent className="pt-6 text-center space-y-4">
-                          <div className="w-16 h-16 rounded-2xl bg-cyan-500/10 flex items-center justify-center text-cyan-400 mx-auto border border-cyan-500/20">
-                              <User className="w-8 h-8" />
+                  <Card className="md:col-span-1 bg-slate-900/60 backdrop-blur-xl border-white/10">
+                      <CardContent className="pt-8 text-center space-y-4">
+                          <div className="w-20 h-20 rounded-3xl bg-primary/10 flex items-center justify-center text-primary mx-auto border border-primary/30 shadow-[0_0_30px_rgba(59,130,246,0.1)]">
+                              <User className="w-10 h-10 stroke-white" />
                           </div>
                           <div>
-                              <h3 className="text-lg font-bold text-white">评审专家 {ev.judge_tag}</h3>
-                              <p className="text-xs text-cyan-500 font-mono mt-1">{ev.judge_style}</p>
+                              <h3 className="text-xl font-black text-white uppercase tracking-tighter">专家 {ev.judge_tag}</h3>
+                              <p className="text-[12px] text-white/90 font-bold font-mono mt-1 tracking-[0.2em]">{ev.judge_style}</p>
                           </div>
-                          <div className="pt-4 border-t border-slate-800">
-                              <div className="text-4xl font-black text-white">{ev.total_score}</div>
-                              <div className="text-[10px] text-slate-500 font-mono mt-1 uppercase tracking-widest">Score Awarded</div>
+                          <div className="pt-2 border-t border-white/5">
+                              <div className="text-5xl font-black text-white tracking-tighter">{ev.total_score}</div>
+                              <div className="text-[9px] text-slate-500 font-mono mt-2 uppercase tracking-[0.3em]">个人分数</div>
                           </div>
                       </CardContent>
                   </Card>
-                  <Card className="md:col-span-3 bg-slate-900 border-slate-800">
+                  <Card className="md:col-span-3 bg-slate-900/30 backdrop-blur-xl border-white/5 flex flex-col justify-center">
                       <CardHeader>
-                          <CardTitle className="text-sm font-bold text-slate-400 uppercase tracking-widest">视角综述</CardTitle>
+                          <CardTitle className="text-[12px] font-black text-slate-500 uppercase tracking-[0.4em]">评价总结</CardTitle>
                       </CardHeader>
                       <CardContent>
-                          <p className="text-slate-300 leading-relaxed text-lg italic">
+                          <p className="text-xl md:text-2xl text-slate-300 leading-snug font-normal italic opacity-90">
                               "{ev.overall_comment}"
                           </p>
                       </CardContent>
                   </Card>
                 </div>
 
-                {/* Dimensions */}
-                <div className="space-y-6">
+                <div className="space-y-8">
                   {ev.dimensions.map((dim: JudgeDimension) => (
                     <DimensionCard key={dim.dimension_name} dimension={dim} />
                   ))}
@@ -282,22 +308,23 @@ export function ResultPage() {
             ))}
           </Tabs>
         ) : isLoading ? (
-          <div className="py-32 text-center">
+          <div className="py-40 text-center">
             <div className="relative inline-block">
-              <div className="absolute inset-0 bg-cyan-500/20 blur-3xl rounded-full" />
-              <Loader2 className="h-16 w-16 animate-spin text-cyan-500 relative" />
+              <div className="absolute inset-0 bg-primary/30 blur-[60px] rounded-full animate-pulse" />
+              <Loader2 className="h-16 w-16 animate-spin text-primary relative" />
             </div>
-            <p className="text-slate-400 mt-8 font-mono tracking-widest uppercase text-sm animate-pulse">正在解析神经元回传数据...</p>
+            <p className="text-slate-400 mt-10 font-mono tracking-[0.5em] uppercase text-xs animate-pulse">Synchronizing Neural Core Results...</p>
           </div>
         ) : (status === 'error' || status === 'failed') ? (
           <div className="py-20">
-            <Alert variant="destructive" className="max-w-xl mx-auto bg-red-950/20 border-red-900/50 text-red-200 shadow-2xl">
-              <XCircle className="h-5 w-5" />
-              <AlertTitle className="text-lg font-bold mb-2">系统分析中断</AlertTitle>
-              <AlertDescription className="text-sm opacity-80 leading-relaxed">
-                分析引擎遇到不可恢复的错误。这可能是由于文档格式不符合规范或核心算力节点异常导致的。
-                请检查上方控制台输出的详细 Debug 日志。
+            <Alert variant="destructive" className="max-w-2xl mx-auto bg-red-950/40 backdrop-blur-xl border-red-500/30 text-red-200 shadow-2xl p-8 rounded-3xl">
+              <XCircle className="h-8 w-8 mb-4" />
+              <AlertTitle className="text-2xl font-black mb-4 uppercase tracking-tighter">System Engine Interrupted</AlertTitle>
+              <AlertDescription className="text-sm opacity-80 leading-relaxed font-normal">
+                分析引擎在处理神经元回传数据时遇到了不可恢复的致命冲突。这通常由非标文档格式、严重的数据损坏或AI核心节点负载过高导致。
+                请检查控制台获取详细错误代码，并尝试重新提交。
               </AlertDescription>
+              <Button onClick={() => navigate('/judge')} className="mt-8 bg-red-600 hover:bg-red-500 text-white font-bold px-8">RETRY_SUBMISSION</Button>
             </Alert>
           </div>
         ) : null}
@@ -308,36 +335,36 @@ export function ResultPage() {
 
 function DimensionCard({ dimension }: { dimension: JudgeDimension }) {
   return (
-    <Card className="bg-slate-900 border-slate-800 overflow-hidden">
-      <CardHeader className="pb-6 bg-slate-800/20 border-b border-slate-800/50">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="flex items-center gap-4">
-            <div className="w-10 h-10 rounded-xl bg-slate-800 border border-slate-700 flex items-center justify-center text-slate-300">
-                <BarChart3 className="w-5 h-5" />
+    <Card className="bg-slate-900/40 backdrop-blur-xl border-white/10 overflow-hidden group">
+      <CardHeader className="pb-8 bg-white/5 border-b border-white/5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6">
+          <div className="flex items-center gap-5">
+            <div className="w-12 h-12 rounded-2xl bg-slate-800 border border-white/10 flex items-center justify-center text-primary group-hover:rotate-6 transition-transform">
+                <Target className="w-6 h-6 stroke-blue-50" />
             </div>
             <div>
-                <CardTitle className="text-lg text-white font-bold">{dimension.dimension_name}</CardTitle>
-                <div className="flex items-center gap-2 mt-1">
-                    <Badge variant="outline" className="bg-slate-800/50 border-slate-700 text-slate-400 text-[10px] px-2 py-0">
+                <CardTitle className="text-xl text-white font-black tracking-tight">{dimension.dimension_name}</CardTitle>
+                <div className="flex items-center gap-3 mt-1.5">
+                    <Badge variant="outline" className=" text-white">
                         权重 {(dimension.dimension_weight * 100).toFixed(0)}%
                     </Badge>
                 </div>
             </div>
           </div>
           <div className="text-right">
-            <div className="text-3xl font-black text-white leading-none">
+            <div className="text-4xl font-black text-white leading-none tracking-tighter">
               {dimension.dimension_score}
-              <span className="text-sm font-normal text-slate-500 ml-1">/ {dimension.dimension_max_score}</span>
+              <span className="text-sm font-normal text-slate-500 ml-2 tracking-normal">/ {dimension.dimension_max_score}</span>
             </div>
           </div>
         </div>
         <Progress
           value={(dimension.dimension_score / (dimension.dimension_max_score || 1)) * 100}
-          className="h-1.5 mt-6 bg-slate-800"
+          className="h-1 mt-12 bg-white/20 shadow-[0_0_10px_rgba(59,130,246,0.3)]"
         />
       </CardHeader>
-      <CardContent className="pt-8">
-        <div className="grid md:grid-cols-2 gap-10">
+      <CardContent className="pt-10">
+        <div className="grid md:grid-cols-2 gap-12">
           {dimension.points.map((pt: JudgePoint) => (
             <PointCard key={pt.point_name} point={pt} />
           ))}
@@ -349,32 +376,30 @@ function DimensionCard({ dimension }: { dimension: JudgeDimension }) {
 
 function PointCard({ point }: { point: JudgePoint }) {
   return (
-    <div className="space-y-4 group">
-      <div className="flex justify-between items-start border-b border-slate-800 pb-3">
-        <div className="flex items-start gap-3">
-            <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-cyan-500 shadow-[0_0_5px_rgba(6,182,212,0.5)]" />
-            <span className="font-bold text-slate-200 text-sm group-hover:text-white transition-colors">
-            {point.point_name}
+    <div className="space-y-5 group/point">
+      <div className="flex justify-between items-start border-b border-white/5 pb-4">
+        <div className="flex items-start gap-4">
+            <span className="font-bold text-slate-200 text-sm group-hover/point:text-white transition-colors tracking-tight">
+                {point.point_name}
             </span>
         </div>
-        <span className="font-mono font-black text-cyan-400 text-sm">
-          {point.score} <span className="text-slate-600 font-normal">/ {point.max_score}</span>
+        <span className="font-mono font-black text-primary text-sm tracking-tighter text-white">
+          {point.score} <span className="text-slate-300 font-normal">/ {point.max_score}</span>
         </span>
       </div>
 
-      <div className="space-y-4">
-        <div className="text-sm leading-relaxed text-slate-400 text-justify">
-            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-600 block mb-2">评审观察 Observation</span>
+      <div className="space-y-5">
+        <div className="leading-relaxed text-slate-400 text-justify font-normal">
             {point.reason}
         </div>
 
         {point.improve && (
-            <div className="bg-amber-500/5 border-l-2 border-amber-500/50 p-4 rounded-r-lg">
-                <div className="flex items-center gap-2 mb-2">
-                    <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
-                    <span className="text-[10px] font-black uppercase tracking-[0.2em] text-amber-500">改进建议 Recommendation</span>
+            <div className="bg-amber-500/5 border-l-2 border-amber-500/40 p-5 rounded-r-2xl transition-all group-hover/point:bg-amber-500/10">
+                <div className="flex items-center gap-2 mb-3">
+                    <AlertTriangle className="h-3.5 w-3.5 text-amber-500/70" />
+                    <span className="font-black uppercase tracking-[0.3em] text-amber-500/70 font-mono">建议</span>
                 </div>
-                <p className="text-xs text-amber-200/70 leading-relaxed italic">
+                <p className="text-amber-200/60 leading-relaxed italic font-normal">
                     {point.improve}
                 </p>
             </div>
