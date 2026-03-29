@@ -4,7 +4,7 @@ import os
 import shutil
 import hashlib
 from datetime import datetime
-from typing import List
+from typing import List, Optional, Dict, Any
 
 from pydantic import BaseModel
 from fastapi import APIRouter, BackgroundTasks, File, HTTPException, UploadFile, Depends
@@ -93,6 +93,9 @@ async def judge_file(
 
     workflow_run_id = uuid.uuid4().hex
     result_path = os.path.join(RESULT_DIR, f"{workflow_run_id}.json")
+
+    display_name = data.original_filename if data.original_filename else data.filename
+
     # 初始化任务状态
     with open(result_path, "w", encoding="utf-8") as f:
         json.dump(
@@ -104,6 +107,7 @@ async def judge_file(
                 "metadata": {
                     "contest_id": data.contest_id,
                     "filename": data.filename,
+                    "original_filename": display_name,
                     "user_name": current_user_name,
                     "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 }
@@ -128,6 +132,7 @@ async def judge_file(
                         "metadata": {
                             "contest_id": data.contest_id,
                             "filename": data.filename,
+                            "original_filename": display_name,
                             "user_name": current_user_name,
                             "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                         }
@@ -148,6 +153,7 @@ async def judge_file(
                         "metadata": {
                             "contest_id": data.contest_id,
                             "filename": data.filename,
+                            "original_filename": display_name,
                             "user_name": current_user_name,
                             "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                         }
@@ -166,8 +172,13 @@ async def judge_file(
     )
 
 
+# ================= 批量判分 =================
+class FileItem(BaseModel):
+    filename: str  # 存储名 (MD5)
+    original_filename: str  # 原始可读名
+
 class BatchJudgeRequest(BaseModel):
-    filenames: List[str]
+    files: List[FileItem]
     contest_id: str
 
 @router.post("/batch_judge")
@@ -190,7 +201,9 @@ async def batch_judge_files(
         raw_json = json.load(f)
     score_rule_json = json.dumps(raw_json, ensure_ascii=False, separators=(",", ":"))
 
-    for filename in data.filenames:
+    for item in data.files:
+        filename = item.filename
+        original_name = item.original_filename
         file_path = os.path.join(UPLOAD_DIR, filename)
         if not os.path.exists(file_path):
             continue
@@ -198,6 +211,7 @@ async def batch_judge_files(
         workflow_run_id = uuid.uuid4().hex
         result_path = os.path.join(RESULT_DIR, f"{workflow_run_id}.json")
 
+        # 初始化任务状态
         with open(result_path, "w", encoding="utf-8") as f:
             json.dump(
                 {
@@ -208,6 +222,7 @@ async def batch_judge_files(
                     "metadata": {
                         "contest_id": data.contest_id,
                         "filename": filename,
+                        "original_filename": original_name,
                         "user_name": current_user_name,
                         "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                     }
@@ -217,7 +232,7 @@ async def batch_judge_files(
                 indent=2,
             )
 
-        def run_single_task(fid=workflow_run_id, fname=filename, rpath=result_path):
+        def run_single_task(fid=workflow_run_id, fname=filename, oname=original_name, rpath=result_path):
             try:
                 file_id = upload_file_to_dify(os.path.join(UPLOAD_DIR, fname), fname, current_user_name)
                 result = run_workflow_with_file(file_id, score_rule_json, current_user_name)
@@ -232,6 +247,7 @@ async def batch_judge_files(
                             "metadata": {
                                 "contest_id": data.contest_id,
                                 "filename": fname,
+                                "original_filename": oname,
                                 "user_name": current_user_name,
                                 "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                             }
@@ -251,6 +267,7 @@ async def batch_judge_files(
                             "metadata": {
                                 "contest_id": data.contest_id,
                                 "filename": fname,
+                                "original_filename": oname,
                                 "user_name": current_user_name,
                                 "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                             }
@@ -269,7 +286,7 @@ async def batch_judge_files(
     return results
 
 
-# 历史记录
+# ================= 历史记录 =================
 @router.get("/history")
 async def get_history(current_user_name: str = Depends(get_current_user_name)):
     """
@@ -290,9 +307,11 @@ async def get_history(current_user_name: str = Depends(get_current_user_name)):
                 metadata = data.get("metadata", {})
 
                 if metadata.get("user_name") == current_user_name:
+                    display_filename = metadata.get("original_filename") or metadata.get("filename")
+
                     history.append({
                         "workflow_run_id": filename.replace(".json", ""),
-                        "filename": metadata.get("filename"),
+                        "filename": display_filename,
                         "contest_id": metadata.get("contest_id"),
                         "status": data.get("status"),
                         "created_at": metadata.get("created_at"),

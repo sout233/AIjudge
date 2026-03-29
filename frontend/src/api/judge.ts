@@ -12,16 +12,17 @@ export const judgeApi = {
     return client.post("/upload", formData);
   },
 
-  submitJudge: (contestId: string, filename: string): Promise<SubmitResponse> =>
+  submitJudge: (contestId: string, filename: string, originalFilename?: string): Promise<SubmitResponse> =>
     client.post("/judge", {
       contest_id: contestId,
       filename,
+      original_filename: originalFilename
     }),
 
-  submitBatchJudge: (contestId: string, filenames: string[]): Promise<{ workflow_run_id: string; filename: string }[]> =>
+  submitBatchJudge: (contestId: string, files: { filename: string; original_filename: string }[]): Promise<{ workflow_run_id: string; filename: string }[]> =>
     client.post("/batch_judge", {
       contest_id: contestId,
-      filenames,
+      files,
     }),
 
   getStatus: (workflowRunId: string): Promise<JudgeStatusResponse> =>

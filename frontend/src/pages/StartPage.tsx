@@ -157,16 +157,23 @@ export function StartPage() {
           updateFileStatus(bf.id, { status: 'error', error: '上传失败' });
         }
       }
+// 准备批量提交
+const pendingPairs = currentBatch
+  .filter(bf => uploadedNames[bf.id])
+  .map(bf => ({
+      id: bf.id,
+      filename: uploadedNames[bf.id],
+      original_filename: bf.filename
+  }));
 
-      const pendingPairs = currentBatch
-        .filter(bf => uploadedNames[bf.id])
-        .map(bf => ({ id: bf.id, filename: uploadedNames[bf.id] }));
-
-      if (pendingPairs.length > 0) {
-        const batchResults = await judgeApi.submitBatchJudge(
-            selectedContestId,
-            pendingPairs.map(p => p.filename)
-        );
+if (pendingPairs.length > 0) {
+  const batchResults = await judgeApi.submitBatchJudge(
+      selectedContestId,
+      pendingPairs.map(p => ({
+          filename: p.filename,
+          original_filename: p.original_filename
+      }))
+  );
 
         batchResults.forEach(res => {
           const pair = pendingPairs.find(p => p.filename === res.filename);
@@ -476,7 +483,7 @@ export function StartPage() {
                 </Button>
                 <button
                     onClick={() => { clearBatch(); setContestId(null); }}
-                    className="text-md bg-blue-600 text-slate-500 hover:text-slate-300 underline"
+                    className="w-full text-md p-2 border rounded-md bg-white text-black hover:bg-white/90"
                 >
                     发起新测评
                 </button>

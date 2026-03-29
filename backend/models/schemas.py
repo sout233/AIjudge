@@ -15,6 +15,7 @@ class Contest(BaseModel):
 
 class JudgeRequest(BaseModel):
     filename: str
+    original_filename: Optional[str] = None
     contest_id: str
 
 class JudgeResponse(BaseModel):
