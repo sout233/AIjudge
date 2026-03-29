@@ -131,7 +131,7 @@ export function LandingPage() {
               <Button
                 size="lg"
                 onClick={() => navigate('/judge')}
-                className="bg-cyan-500 hover:bg-cyan-600 text-slate-900 font-semibold"
+                className="h-12 bg-cyan-500 hover:bg-cyan-600 text-slate-900 font-semibold"
               >
                 立即参与
                 <ChevronRight className="w-5 h-5 ml-1" />
@@ -140,7 +140,7 @@ export function LandingPage() {
                 size="lg"
                 variant="outline"
                 onClick={() => document.getElementById('contests')?.scrollIntoView({ behavior: 'smooth' })}
-                className="border-slate-400 text-slate-200 hover:bg-slate-800"
+                className="h-12 border-slate-400 text-slate-800 hover:bg-slate-400"
               >
                 查看竞赛
               </Button>
@@ -149,7 +149,7 @@ export function LandingPage() {
                 variant="outline"
                 size="lg"
                 onClick={() => navigate('/check-certificate')}
-                className="h-14 px-8 text-lg border-emerald-500/50 text-emerald-400 hover:bg-emerald-500/10 hover:border-emerald-500 transition-all"
+                className="h-12 px-8 text-lg border-emerald-500/50 text-emerald-400 hover:bg-emerald-500/80 hover:border-emerald-500 transition-all"
               >
                 <Shield className="w-5 h-5 mr-2" />
                 证书鉴伪核验
