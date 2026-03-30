@@ -1,59 +1,71 @@
-import client from "./client";
+import client, { rawClient } from './client';
 import type {
   UploadResponse,
   SubmitResponse,
   JudgeStatusResponse,
-} from "@/types";
+  VerificationStatus,
+  CaptchaTask,
+  CaptchaPoint,
+  CertificateExtractResponse,
+} from '@/types';
+
+interface PendingCaptchasResponse {
+  data?: CaptchaTask[];
+}
+
+interface VerifyInitResponse {
+  code?: number;
+  data?: unknown[];
+}
 
 export const judgeApi = {
   uploadFile: (file: File): Promise<UploadResponse> => {
     const formData = new FormData();
-    formData.append("file", file);
-    return client.post("/upload", formData);
+    formData.append('file', file);
+    return client.post('/upload', formData);
   },
 
-  submitJudge: (contestId: string, filename: string): Promise<SubmitResponse> =>
-    client.post("/judge", {
+  submitJudge: (contestId: string, filename: string, trackId?: string): Promise<SubmitResponse> =>
+    client.post('/judge', {
       contest_id: contestId,
       filename,
+      track_id: trackId,
     }),
 
   getStatus: (workflowRunId: string): Promise<JudgeStatusResponse> =>
     client.get(`/judge/${workflowRunId}/status`),
 
-  getMock: (): Promise<SubmitResponse> => client.get("/judge/mock"),
+  getMock: (): Promise<SubmitResponse> => client.get('/judge/mock'),
 
   downloadPdf: (workflowRunId: string): Promise<Blob> =>
-    client.get(`/judge/${workflowRunId}/download_pdf`, {
-      responseType: "blob",
-    }),
+    rawClient
+      .get(`/judge/${workflowRunId}/download_pdf`, {
+        responseType: 'blob',
+      })
+      .then((res) => res.data),
 
   verifyCertificate: async (
     regNo: string,
     owner?: string,
-    softName?: string,
-  ): Promise<{ status: "success" | "not_found" | "mismatch" }> => {
-    const keyword = owner || softName || "";
+    softName?: string
+  ): Promise<{ status: VerificationStatus }> => {
+    const keyword = owner || softName || '';
 
     try {
-      const response: any = await client.post(
-        "/verify/init-query",
+      const response: VerifyInitResponse = await client.post(
+        '/verify/init-query',
         {
           register_no: regNo,
           keyword: keyword,
         },
-        { timeout: 300000 },
+        { timeout: 300000 }
       );
 
-      console.log("【调试】后端返回结果:", response);
+      if (response.code === 200) {
+        const items = response.data;
 
-      const payload = response.code !== undefined ? response : response.data;
-
-      if (payload && payload.code === 200) {
-        const items = payload.data;
-
-        if (!items || !Array.isArray(items) || items.length === 0) {
-          return { status: "not_found" };
+        if (!items || items.length === 0) {
+          return { status: 'not_found' };
         }
 
         const textContent = JSON.stringify(items);
@@ -61,39 +73,34 @@ export const judgeApi = {
         const softNameMatch = softName ? textContent.includes(softName) : true;
 
         if (ownerMatch && softNameMatch) {
-          return { status: "success" };
+          return { status: 'success' };
         } else {
-          console.warn(
-            "【调试】数据不匹配。目标:",
-            { owner, softName },
-            "实际文本:",
-            textContent,
-          );
-          return { status: "mismatch" };
+          return { status: 'mismatch' };
         }
       }
 
-      return { status: "not_found" };
+      return { status: 'not_found' };
     } catch (error) {
-      console.error("核验接口异常:", error);
+      console.error('核验接口异常:', error);
       throw error;
     }
   },
 
-  getPendingCaptchas: (): Promise<any> => client.get("/verify/pending"),
+  getPendingCaptchas: (): Promise<CaptchaTask[]> =>
+    client.get('/verify/pending').then((res: PendingCaptchasResponse) => {
+      const tasks = res.data || res;
+      return Array.isArray(tasks) ? tasks : [];
+    }),
 
-  submitCaptchaPoints: (
-    sessionId: string,
-    points: { x: number; y: number }[],
-  ): Promise<any> =>
-    client.post("/verify/submit-query", {
+  submitCaptchaPoints: (sessionId: string, points: CaptchaPoint[]): Promise<unknown> =>
+    client.post('/verify/submit-query', {
       session_id: sessionId,
       points: points,
     }),
 
-  uploadAndVerifyCertificate: (file: File): Promise<any> => {
+  uploadAndVerifyCertificate: (file: File): Promise<CertificateExtractResponse> => {
     const formData = new FormData();
-    formData.append("file", file);
-    return client.post("/verify/upload-extract", formData);
+    formData.append('file', file);
+    return client.post('/verify/upload-extract', formData);
   },
 };

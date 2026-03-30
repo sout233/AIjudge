@@ -59,105 +59,111 @@ export function ResultPage() {
   };
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6">
-      {/* Top Bar */}
-      <div className="flex items-center justify-between bg-card border rounded-lg p-4 shadow-sm">
-        <h2 className="text-2xl font-bold">评分详情报告</h2>
-        <div className="flex items-center gap-4">
-          <Badge variant={getStatusBadgeVariant()} className="text-sm px-3 py-1">
-            {status === 'running' && <Loader2 className="mr-1 h-3 w-3 animate-spin inline" />}
-            {statusText}
-          </Badge>
+    <div className="min-h-screen bg-slate-50 py-8 px-4">
+      <div className="max-w-5xl mx-auto space-y-6">
+        {/* Top Bar */}
+        <div className="flex items-center justify-between bg-card border rounded-lg p-4 shadow-sm">
+          <h2 className="text-2xl font-bold">评分详情报告</h2>
+          <div className="flex items-center gap-4">
+            <Badge variant={getStatusBadgeVariant()} className="text-sm px-3 py-1">
+              {status === 'running' && <Loader2 className="mr-1 h-3 w-3 animate-spin inline" />}
+              {statusText}
+            </Badge>
 
-          {result && (
-            <Button
-              size="sm"
-              onClick={downloadPdf}
-              disabled={downloading}
-            >
-              {downloading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              <Download className="w-4 h-4 mr-2" />
-              下载 PDF
-            </Button>
-          )}
-        </div>
-      </div>
-
-      {/* Terminal Logs */}
-      {(status !== 'succeeded' && status !== 'success') && (
-        <div className="bg-[#1e1e1e] text-gray-300 rounded-lg shadow-lg overflow-hidden">
-          <div
-            className="h-48 overflow-y-auto px-4 py-3 font-mono text-sm terminal-scroll"
-            ref={scrollBoxRef}
-          >
-            {!progressText ? (
-              <span className="text-gray-600 animate-pulse">Waiting for system output...</span>
-            ) : (
-              <pre className="whitespace-pre-wrap">{progressText}</pre>
+            {result && (
+              <Button
+                size="sm"
+                onClick={downloadPdf}
+                disabled={downloading}
+              >
+                {downloading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                <Download className="w-4 h-4 mr-2" />
+                下载 PDF
+              </Button>
             )}
           </div>
         </div>
-      )}
 
-      {/* Content */}
-      {result ? (
-        <div className="space-y-6 animate-in fade-in duration-500">
-          {/* Summary Stats */}
-          <div className="grid md:grid-cols-3 gap-6">
-            <Card className="md:col-span-1">
-              <CardHeader className="text-center">
-                <CardTitle className="text-sm font-medium text-muted-foreground">综合得分</CardTitle>
-              </CardHeader>
-              <CardContent className="text-center">
-                <div className="text-6xl font-bold text-primary">
-                  {result.total_score}
-                  <span className="text-2xl text-muted-foreground font-normal">/{result.max_score}</span>
-                </div>
-                <p className="text-sm text-green-600 font-medium mt-2">AI 评审完成</p>
-              </CardContent>
-            </Card>
-
-            <Card className="md:col-span-2">
-              <CardHeader>
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <FileText className="w-5 h-5" />
-                  评审总结
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-justify leading-relaxed whitespace-pre-wrap">
-                  {result.overall_comment}
-                </p>
-              </CardContent>
-            </Card>
+        {/* Terminal Logs */}
+        {(status !== 'succeeded' && status !== 'success') && (
+          <div className="bg-[#1e1e1e] text-gray-300 rounded-lg shadow-lg overflow-hidden">
+            <div
+              className="h-48 overflow-y-auto px-4 py-3 font-mono text-sm terminal-scroll"
+              ref={scrollBoxRef}
+            >
+              {!progressText ? (
+                <span className="text-gray-600 animate-pulse">Waiting for system output...</span>
+              ) : (
+                <pre className="whitespace-pre-wrap">{progressText}</pre>
+              )}
+            </div>
           </div>
+        )}
 
-          {/* Dimensions */}
-          <div className="space-y-4">
-            {result.dimensions.map((dim: JudgeDimension) => (
-              <DimensionCard key={dim.dimension_name} dimension={dim} />
-            ))}
+        {/* Content */}
+        {result ? (
+          <div className="space-y-6 animate-in fade-in duration-500">
+            {/* Summary Stats */}
+            <div className="grid md:grid-cols-3 gap-6">
+              <Card className="md:col-span-1">
+                <CardHeader className="text-center">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">综合得分</CardTitle>
+                </CardHeader>
+                <CardContent className="text-center">
+                  <div className="text-6xl font-bold text-primary">
+                    {result.total_score}
+                    <span className="text-2xl text-muted-foreground font-normal">/{result.max_score}</span>
+                  </div>
+                  <p className="text-sm text-green-600 font-medium mt-2">AI 评审完成</p>
+                </CardContent>
+              </Card>
+
+              <Card className="md:col-span-2">
+                <CardHeader>
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <FileText className="w-5 h-5" />
+                    评审总结
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-justify leading-relaxed whitespace-pre-wrap">
+                    {result.overall_comment}
+                  </p>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Dimensions */}
+            <div className="space-y-4">
+              {result.dimensions.map((dim: JudgeDimension) => (
+                <DimensionCard key={dim.dimension_name} dimension={dim} />
+              ))}
+            </div>
           </div>
-        </div>
-      ) : isLoading ? (
-        <div className="py-20 text-center">
-          <Loader2 className="h-12 w-12 animate-spin text-primary mx-auto" />
-          <p className="text-muted-foreground mt-4">正在接收分析数据...</p>
-        </div>
-      ) : (status === 'error' || status === 'failed') ? (
-        <div className="py-10">
-          <Alert variant="destructive" className="max-w-lg mx-auto">
-            <XCircle className="h-4 w-4" />
-            <AlertTitle>分析未能完成</AlertTitle>
-            <AlertDescription>请查看上方日志获取详细错误信息</AlertDescription>
-          </Alert>
-        </div>
-      ) : null}
+        ) : isLoading ? (
+          <div className="py-20 text-center">
+            <Loader2 className="h-12 w-12 animate-spin text-primary mx-auto" />
+            <p className="text-muted-foreground mt-4">正在接收分析数据...</p>
+          </div>
+        ) : (status === 'error' || status === 'failed') ? (
+          <div className="py-10">
+            <Alert variant="destructive" className="max-w-lg mx-auto">
+              <XCircle className="h-4 w-4" />
+              <AlertTitle>分析未能完成</AlertTitle>
+              <AlertDescription>请查看上方日志获取详细错误信息</AlertDescription>
+            </Alert>
+          </div>
+        ) : null}
+      </div>
     </div>
   );
 }
 
-function DimensionCard({ dimension }: { dimension: JudgeDimension }) {
+interface DimensionCardProps {
+  dimension: JudgeDimension;
+}
+
+function DimensionCard({ dimension }: DimensionCardProps) {
   return (
     <Card>
       <CardHeader className="pb-4">
@@ -173,9 +179,9 @@ function DimensionCard({ dimension }: { dimension: JudgeDimension }) {
             </span>
           </div>
         </div>
-        <Progress 
-          value={dimension.dimension_score} 
-          max={dimension.dimension_max_score} 
+        <Progress
+          value={dimension.dimension_score}
+          max={dimension.dimension_max_score}
           className="h-2 mt-2"
         />
       </CardHeader>
@@ -190,7 +196,11 @@ function DimensionCard({ dimension }: { dimension: JudgeDimension }) {
   );
 }
 
-function PointCard({ point }: { point: JudgePoint }) {
+interface PointCardProps {
+  point: JudgePoint;
+}
+
+function PointCard({ point }: PointCardProps) {
   return (
     <div className="space-y-3">
       <div className="flex justify-between items-center border-b pb-2">

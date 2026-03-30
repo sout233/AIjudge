@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Label } from '@/components/ui/label';
+import type { ApiError } from '@/types';
 
 export function LoginPage() {
   const navigate = useNavigate();
@@ -30,13 +31,11 @@ export function LoginPage() {
 
     try {
       const response = await authApi.login({ email, password });
-
-      setAuth(response.access_token, { ...response.user, role: (response.user as any).role || 'user' });
-
+      setAuth(response.access_token, response.user);
       // 跳转到原目标页面或首页
       navigate(from, { replace: true });
-    } catch (err: unknown) {
-      const error = err as { message?: string; response?: { data?: { detail?: string } } };
+    } catch (err) {
+      const error = err as ApiError;
       setError(error.response?.data?.detail || error.message || '登录失败，请检查邮箱和密码');
     } finally {
       setLoading(false);
@@ -150,12 +149,11 @@ export function LoginPage() {
           基于 Dify 大语言模型工作流驱动
         </p>
         <footer className="container mx-auto px-4 py-8 text-center border-t border-slate-800">
-        <p className="mt-2 text-[9px] text-slate-500">
-          鄂ICP备2026012182号-1
-        </p>
-      </footer>
+          <p className="mt-2 text-[9px] text-slate-500">
+            鄂ICP备2026012182号-1
+          </p>
+        </footer>
       </div>
-
     </div>
   );
 }

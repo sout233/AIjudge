@@ -11,15 +11,24 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { RichEditor, SourceEditor, RichContent, MarkdownPreview } from '@/components/ui/rich-editor';
-import { extractTextFromHtml, countImages, getContentSize } from '@/components/ui/rich-editor';
+import {
+  RichEditor,
+  SourceEditor,
+  RichContent,
+  MarkdownPreview,
+  extractTextFromHtml,
+  countImages,
+  getContentSize,
+} from '@/components/ui/rich-editor';
 import type { Contest } from '@/types';
+
+type EditMode = 'visual' | 'source' | 'markdown';
 
 export function AnnouncementManagement() {
   const queryClient = useQueryClient();
   const [selectedId, setSelectedId] = useState<string>('');
   const [content, setContent] = useState('');
-  const [editMode, setEditMode] = useState<'visual' | 'source' | 'markdown'>('visual');
+  const [editMode, setEditMode] = useState<EditMode>('visual');
 
   const { data: contests = [] } = useQuery({
     queryKey: ['contests'],
@@ -34,7 +43,8 @@ export function AnnouncementManagement() {
 
   useEffect(() => {
     if (announcementData) {
-      setContent(announcementData.content || '');    }
+      setContent(announcementData.content || '');
+    }
   }, [announcementData]);
 
   const saveMutation = useMutation({
@@ -72,43 +82,28 @@ export function AnnouncementManagement() {
       {/* Header */}
       <div className="flex items-center justify-between flex-shrink-0">
         <h2 className="text-2xl font-bold">公告配置</h2>
-        
+
         <div className="flex items-center gap-3">
           {/* 编辑模式切换 */}
           <div className="flex items-center bg-slate-100 rounded-lg p-1">
-            <button
+            <ModeButton
+              active={editMode === 'visual'}
               onClick={() => setEditMode('visual')}
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm transition-all ${
-                editMode === 'visual' 
-                  ? 'bg-white shadow-sm text-cyan-600' 
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              <Monitor className="w-4 h-4" />
-              可视化
-            </button>
-            <button
+              icon={<Monitor className="w-4 h-4" />}
+              label="可视化"
+            />
+            <ModeButton
+              active={editMode === 'source'}
               onClick={() => setEditMode('source')}
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm transition-all ${
-                editMode === 'source' 
-                  ? 'bg-white shadow-sm text-cyan-600' 
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              <Code2 className="w-4 h-4" />
-              源码
-            </button>
-            <button
+              icon={<Code2 className="w-4 h-4" />}
+              label="源码"
+            />
+            <ModeButton
+              active={editMode === 'markdown'}
               onClick={() => setEditMode('markdown')}
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm transition-all ${
-                editMode === 'markdown' 
-                  ? 'bg-white shadow-sm text-cyan-600' 
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              <Code2 className="w-4 h-4" />
-              Markdown
-            </button>
+              icon={<Code2 className="w-4 h-4" />}
+              label="Markdown"
+            />
           </div>
         </div>
       </div>
@@ -129,7 +124,7 @@ export function AnnouncementManagement() {
             </SelectContent>
           </Select>
         </div>
-        
+
         {selectedId && (
           <span className="text-sm text-slate-500">
             当前编辑：<span className="font-medium text-slate-900">{selectedName}</span>
@@ -155,11 +150,11 @@ export function AnnouncementManagement() {
                   </span>
                   <span>大小：{sizeKB} KB</span>
                 </div>
-                
+
                 <div className="flex items-center gap-2">
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
+                  <Button
+                    variant="ghost"
+                    size="sm"
                     onClick={handleClear}
                     disabled={!content || saveMutation.isPending}
                     className="text-red-600 hover:text-red-700 hover:bg-red-50"
@@ -247,5 +242,28 @@ export function AnnouncementManagement() {
         </div>
       )}
     </div>
+  );
+}
+
+interface ModeButtonProps {
+  active: boolean;
+  onClick: () => void;
+  icon: React.ReactNode;
+  label: string;
+}
+
+function ModeButton({ active, onClick, icon, label }: ModeButtonProps) {
+  return (
+    <button
+      onClick={onClick}
+      className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm transition-all ${
+        active
+          ? 'bg-white shadow-sm text-cyan-600'
+          : 'text-slate-600 hover:text-slate-900'
+      }`}
+    >
+      {icon}
+      {label}
+    </button>
   );
 }

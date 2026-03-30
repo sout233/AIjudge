@@ -27,7 +27,12 @@ export function AdminLayout() {
         <Tabs value={currentTab} className="mb-6">
           <TabsList className="grid w-full max-w-md grid-cols-3">
             <TabsTrigger value="contests" asChild>
-              <NavLink to="/admin/contests" className={({ isActive }: { isActive: boolean }) => cn("gap-2", isActive ? "data-[state=active]" : "")}>
+              <NavLink
+                to="/admin/contests"
+                className={({ isActive }: { isActive: boolean }) =>
+                  cn('gap-2', isActive ? 'data-[state=active]' : '')
+                }
+              >
                 <Trophy className="h-4 w-4" />
                 竞赛管理
               </NavLink>

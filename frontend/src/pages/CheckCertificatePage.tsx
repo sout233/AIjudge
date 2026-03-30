@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   ArrowLeft,
   Upload,
@@ -12,60 +12,39 @@ import {
   Shield,
   RefreshCw,
   X,
-} from "lucide-react";
-import { judgeApi } from "@/api/judge";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
+} from 'lucide-react';
+import { judgeApi } from '@/api/judge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
-
-type VerificationStatus =
-  | "idle"
-  | "loading"
-  | "success"
-  | "not_found"
-  | "mismatch";
-
-interface CaptchaTask {
-  session_id: string;
-  wait_time: number;
-  width: number;
-  height: number;
-  bg_image: string;
-}
-
-interface Point {
-  x: number;
-  y: number;
-}
+} from '@/components/ui/dialog';
+import type { VerificationStatus, CaptchaTask, CaptchaPoint } from '@/types';
 
 export function CheckCertificatePage() {
   const navigate = useNavigate();
-  const [status, setStatus] = useState<VerificationStatus>("idle");
+  const [status, setStatus] = useState<VerificationStatus>('idle');
 
   // 表单状态
-  const [regNo, setRegNo] = useState("");
-  const [owner, setOwner] = useState("");
-  const [softName, setSoftName] = useState("");
+  const [regNo, setRegNo] = useState('');
+  const [owner, setOwner] = useState('');
+  const [softName, setSoftName] = useState('');
 
   // 验证码弹窗状态
   const [captchaDialogOpen, setCaptchaDialogOpen] = useState(false);
   const [currentTask, setCurrentTask] = useState<CaptchaTask | null>(null);
-  const [points, setPoints] = useState<Point[]>([]);
+  const [points, setPoints] = useState<CaptchaPoint[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
 
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const processedTasksRef = useRef<Set<string>>(new Set());
-
-  const API_BASE = "http://127.0.0.1:8000/api/verify";
 
   // 后台轮询检查验证码任务
   const checkCaptchaTasks = useCallback(async () => {
@@ -73,8 +52,7 @@ export function CheckCertificatePage() {
     if (captchaDialogOpen) return;
 
     try {
-      const result = await judgeApi.getPendingCaptchas();
-      const tasks: CaptchaTask[] = result.data || result;
+      const tasks = await judgeApi.getPendingCaptchas();
 
       setPendingCount(tasks.length);
 
@@ -91,9 +69,9 @@ export function CheckCertificatePage() {
         setCaptchaDialogOpen(true);
       }
     } catch (error) {
-      console.error("检查验证码任务失败", error);
+      console.error('检查验证码任务失败', error);
     }
-  }, [captchaDialogOpen, API_BASE]);
+  }, [captchaDialogOpen]);
 
   // 启动后台轮询
   useEffect(() => {
@@ -110,28 +88,26 @@ export function CheckCertificatePage() {
   // 证书核验功能
   const handleVerify = async () => {
     if (!regNo || (!owner && !softName)) {
-      alert("请填写登记号，并至少填写著作权人或软件名称中的一项");
+      alert('请填写登记号，并至少填写著作权人或软件名称中的一项');
       return;
     }
 
-    setStatus("loading");
+    setStatus('loading');
     try {
       const response = await judgeApi.verifyCertificate(regNo, owner, softName);
-      console.log(response)
 
-      if (response.status === "success") {
-        setStatus("success");
-      } else if (response.status === "not_found") {
-        setStatus("not_found");
-      } else if (response.status === "mismatch") {
-        setStatus("mismatch");
+      if (response.status === 'success') {
+        setStatus('success');
+      } else if (response.status === 'not_found') {
+        setStatus('not_found');
+      } else if (response.status === 'mismatch') {
+        setStatus('mismatch');
       } else {
-        setStatus("not_found");
+        setStatus('not_found');
       }
-    } catch (error) {
-      console.error("验证失败:", error);
-      alert("验证失败，请稍后重试");
-      setStatus("idle");
+    } catch {
+      alert('验证失败，请稍后重试');
+      setStatus('idle');
     }
   };
 
@@ -139,27 +115,26 @@ export function CheckCertificatePage() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    setStatus("loading");
+    setStatus('loading');
     try {
       const response = await judgeApi.uploadAndVerifyCertificate(file);
-      console.log(response)
 
-      if (response.status === "success") {
-        setRegNo(response.reg_no || "");
-        setOwner(response.owner || "");
-        setSoftName(response.soft_name || "");
-        setStatus("success");
-      } else if (response.status === "not_found") {
-        setStatus("not_found");
-      } else if (response.status === "mismatch") {
-        setStatus("mismatch");
+      if (response.status === 'success') {
+        setRegNo(response.reg_no || '');
+        setOwner(response.owner || '');
+        setSoftName(response.soft_name || '');
+        setStatus('success');
+      } else if (response.status === 'not_found') {
+        setStatus('not_found');
+      } else if (response.status === 'mismatch') {
+        setStatus('mismatch');
       } else {
-        setStatus("not_found");
+        setStatus('not_found');
       }
     } catch (error) {
-      console.error("文件验证失败:", error);
-      alert("文件验证失败，请稍后重试");
-      setStatus("idle");
+      console.error('文件验证失败:', error);
+      alert('文件验证失败，请稍后重试');
+      setStatus('idle');
     }
   };
 
@@ -184,7 +159,7 @@ export function CheckCertificatePage() {
 
   const submitCaptcha = async () => {
     if (!currentTask || points.length === 0) {
-      alert("请先标注坐标");
+      alert('请先标注坐标');
       return;
     }
 
@@ -196,8 +171,8 @@ export function CheckCertificatePage() {
       setCaptchaDialogOpen(false);
       setCurrentTask(null);
       setPoints([]);
-    } catch (error) {
-      alert("提交异常");
+    } catch {
+      alert('提交异常');
     } finally {
       setIsSubmitting(false);
     }
@@ -211,7 +186,7 @@ export function CheckCertificatePage() {
 
   return (
     <div className="max-w-5xl mx-auto space-y-6 pb-12 px-4">
-      <Button variant="ghost" onClick={() => navigate("/")} className="group">
+      <Button variant="ghost" onClick={() => navigate('/')} className="group">
         <ArrowLeft className="mr-2 h-4 w-4 transition-transform group-hover:-translate-x-1" />
         返回首页
       </Button>
@@ -314,19 +289,19 @@ export function CheckCertificatePage() {
       <Button
         className="w-full h-12 text-lg"
         onClick={handleVerify}
-        disabled={status === "loading"}
+        disabled={status === 'loading'}
       >
-        {status === "loading" ? (
+        {status === 'loading' ? (
           <Loader2 className="mr-2 animate-spin" />
         ) : (
-          "开始联网核验"
+          '开始联网核验'
         )}
       </Button>
 
       {/* 结果显示区域 */}
-      {status !== "idle" && status !== "loading" && (
+      {status !== 'idle' && status !== 'loading' && (
         <div className="animate-in zoom-in-95 duration-300">
-          {status === "success" && (
+          {status === 'success' && (
             <div className="p-6 rounded-xl border bg-green-50 border-green-200 flex items-start gap-4">
               <CheckCircle2 className="h-8 w-8 text-green-600 mt-1" />
               <div>
@@ -338,7 +313,7 @@ export function CheckCertificatePage() {
             </div>
           )}
 
-          {status === "not_found" && (
+          {status === 'not_found' && (
             <div className="p-6 rounded-xl border bg-amber-50 border-amber-200 flex items-start gap-4">
               <AlertTriangle className="h-8 w-8 text-amber-600 mt-1" />
               <div>
@@ -352,7 +327,7 @@ export function CheckCertificatePage() {
             </div>
           )}
 
-          {status === "mismatch" && (
+          {status === 'mismatch' && (
             <div className="p-6 rounded-xl border bg-red-50 border-red-200 flex items-start gap-4">
               <XCircle className="h-8 w-8 text-red-600 mt-1" />
               <div>
@@ -460,5 +435,3 @@ export function CheckCertificatePage() {
     </div>
   );
 }
-
-export default CheckCertificatePage;

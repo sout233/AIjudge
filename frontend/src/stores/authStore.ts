@@ -1,11 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-
-interface User {
-  email: string;
-  dify_user_id: string;
-  role: 'admin' | 'owner' | 'user';
-}
+import type { User } from '@/types';
 
 interface AuthState {
   token: string | null;
@@ -31,10 +26,10 @@ export const useAuthStore = create<AuthState>()(
     }),
     {
       name: 'aijudge-auth',
-      partialize: (state) => ({ 
-        token: state.token, 
-        user: state.user, 
-        isAuthenticated: state.isAuthenticated 
+      partialize: (state) => ({
+        token: state.token,
+        user: state.user,
+        isAuthenticated: state.isAuthenticated,
       }),
     }
   )

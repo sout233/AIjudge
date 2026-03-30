@@ -1,1 +1,1 @@
-uv run uvicorn app:app --reload
+uv run uvicorn app.main:app --reload

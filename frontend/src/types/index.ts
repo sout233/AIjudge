@@ -1,16 +1,45 @@
-// Contest types
+// ==================== User Types ====================
+
+export interface User {
+  email: string;
+  dify_user_id: string;
+  role: 'admin' | 'owner' | 'user';
+}
+
+// ==================== Track Types ====================
+
+export interface Track {
+  id: string;
+  name: string;
+  description?: string;
+  rule_id?: string;
+}
+
+// ==================== Contest Types ====================
+
 export interface Contest {
   id: string;
   name: string;
   description?: string;
+  logo?: string;  // Base64编码的竞赛logo
+  status: 'active' | 'upcoming' | 'ended';
+  start_time?: string;  // 竞赛开始时间 (ISO 8601 格式)
+  end_time?: string;    // 竞赛结束时间 (ISO 8601 格式)
+  is_published?: boolean;  // 是否上线（发布）
+  endDate?: string;  // 兼容旧字段
+  participants?: number;
+  submissions?: number;
+  tracks: Track[];
 }
 
-// Announcement types
+// ==================== Announcement Types ====================
+
 export interface Announcement {
   content: string;
 }
 
-// Rule types
+// ==================== Rule Types ====================
+
 export interface RulePoint {
   point_name: string;
   max_score: number;
@@ -28,7 +57,8 @@ export interface RuleConfig {
   dimensions: RuleDimension[];
 }
 
-// Judge/Result types
+// ==================== Judge/Result Types ====================
+
 export interface JudgePoint {
   point_name: string;
   score: number;
@@ -82,7 +112,32 @@ export interface SubmitResponse {
   workflow_run_id: string;
 }
 
-// History types
+// ==================== Certificate Verification Types ====================
+
+export type VerificationStatus = 'idle' | 'loading' | 'success' | 'not_found' | 'mismatch';
+
+export interface CaptchaTask {
+  session_id: string;
+  wait_time: number;
+  width: number;
+  height: number;
+  bg_image: string;
+}
+
+export interface CaptchaPoint {
+  x: number;
+  y: number;
+}
+
+export interface CertificateExtractResponse {
+  status: VerificationStatus;
+  reg_no?: string;
+  owner?: string;
+  soft_name?: string;
+}
+
+// ==================== History Types ====================
+
 export interface HistoryRecord {
   id: string;
   filename: string;
@@ -90,7 +145,8 @@ export interface HistoryRecord {
   time: string;
 }
 
-// API Error
+// ==================== API Error ====================
+
 export interface ApiError {
   response?: {
     data?: {
@@ -98,21 +154,4 @@ export interface ApiError {
     };
   };
   message: string;
-}
-// src/types/index.ts
-export interface Contest {
-  id: string;
-  name: string;
-  description?: string;
-  category?: string;
-  status: 'active' | 'upcoming' | 'ended';  // 新增
-  endDate?: string;  // 新增
-  participants?: number;  // 新增
-  submissions?: number;  // 新增
-}
-
-export interface User {
-  email: string;
-  dify_user_id: string;
-  role: 'admin' | 'owner' | 'user';
 }
