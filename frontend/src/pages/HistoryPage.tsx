@@ -69,6 +69,7 @@ export function HistoryPage() {
       case 'succeeded':
         return <CheckCircle2 className="w-5 h-5 text-emerald-500" />;
       case 'running':
+      case 'pending':
         return <Loader2 className="w-5 h-5 text-blue-500 animate-spin" />;
       case 'error':
       case 'failed':

@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Trash2, Loader2 } from 'lucide-react';
+import { Plus, Trash2, Loader2, ImagePlus, X, Settings2, FolderTree } from 'lucide-react';
 import { adminApi } from '@/api/admin';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
 import {
   Table,
   TableBody,
@@ -13,11 +14,24 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import type { Contest } from '@/types';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog';
+import { ContestLogo } from '@/components/ContestLogo';
+import type { Contest, Track } from '@/types';
 
 export function ContestManagement() {
   const queryClient = useQueryClient();
-  const [newContest, setNewContest] = useState({ id: '', name: '' });
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [newContest, setNewContest] = useState({ id: '', name: '', logo_url: '' });
+
+  // 赛道管理相关状态
+  const [editingTracksContest, setEditingTracksContest] = useState<Contest | null>(null);
+  const [newTrack, setNewTrack] = useState({ id: '', name: '' });
 
   const { data: contests = [], isLoading } = useQuery({
     queryKey: ['contests'],
@@ -28,22 +42,36 @@ export function ContestManagement() {
     mutationFn: adminApi.createContest,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['contests'] });
-      setNewContest({ id: '', name: '' });
-    },
-    onError: (err: { response?: { data?: { detail?: string } }; message: string }) => {
-      alert('创建失败: ' + (err.response?.data?.detail || err.message));
+      setNewContest({ id: '', name: '', logo_url: '' });
     },
   });
 
   const deleteMutation = useMutation({
     mutationFn: adminApi.deleteContest,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['contests'] }),
+  });
+
+  // 更新竞赛（用于保存赛道）
+  const updateMutation = useMutation({
+    mutationFn: (contest: Contest) => adminApi.updateContest(contest.id, contest),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['contests'] });
-    },
-    onError: () => {
-      alert('删除失败');
+      // 更新当前正在编辑的赛道列表对象，以反映最新状态
+      if (editingTracksContest) {
+        const updated = contests.find(c => c.id === editingTracksContest.id);
+        if (updated) setEditingTracksContest(updated);
+      }
     },
   });
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => setNewContest(prev => ({ ...prev, logo_url: reader.result as string }));
+      reader.readAsDataURL(file);
+    }
+  };
 
   const handleCreate = () => {
     if (!newContest.id || !newContest.name) return;
@@ -51,98 +79,122 @@ export function ContestManagement() {
       id: newContest.id,
       name: newContest.name,
       description: '',
-      status: 'upcoming', // 添加这一行
+      logo_url: newContest.logo_url,
+      status: 'active',
+      tracks: []
     });
   };
 
-  const handleDelete = (id: string) => {
-    if (!confirm(`确定要删除竞赛 ${id} 吗?`)) return;
-    deleteMutation.mutate(id);
+  // 添加赛道
+  const handleAddTrack = () => {
+    if (!editingTracksContest || !newTrack.id || !newTrack.name) return;
+    const updatedContest = {
+      ...editingTracksContest,
+      tracks: [...(editingTracksContest.tracks || []), { id: newTrack.id, name: newTrack.name }]
+    };
+    updateMutation.mutate(updatedContest);
+    setNewTrack({ id: '', name: '' });
+  };
+
+  // 删除赛道
+  const handleDeleteTrack = (trackId: string) => {
+    if (!editingTracksContest) return;
+    const updatedContest = {
+      ...editingTracksContest,
+      tracks: (editingTracksContest.tracks || []).filter(t => t.id !== trackId)
+    };
+    updateMutation.mutate(updatedContest);
   };
 
   return (
     <div className="space-y-6">
-      <h2 className="text-2xl font-bold">竞赛列表</h2>
+      <h2 className="text-2xl font-bold">竞赛与赛道管理</h2>
 
-      {/* Create Contest Form */}
+      {/* Create Contest */}
       <Card>
-        <CardHeader>
-          <CardTitle className="text-lg flex items-center gap-2">
-            <Plus className="w-5 h-5" />
-            新建竞赛
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-col md:flex-row gap-4">
-            <Input
-              value={newContest.id}
-              onChange={(e) => setNewContest({ ...newContest, id: e.target.value })}
-              placeholder="竞赛 ID (例如: contest_001)"
-              className="md:w-1/3"
-            />
-            <Input
-              value={newContest.name}
-              onChange={(e) => setNewContest({ ...newContest, name: e.target.value })}
-              placeholder="竞赛显示名称"
-              className="md:w-1/3"
-            />
-            <Button
-              onClick={handleCreate}
-              disabled={createMutation.isPending || !newContest.id || !newContest.name}
-            >
-              {createMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {createMutation.isPending ? '创建中' : '立即创建'}
-            </Button>
+        <CardHeader><CardTitle className="text-lg flex items-center gap-2"><Plus className="w-5 h-5 text-primary" />新建竞赛</CardTitle></CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex flex-col md:flex-row gap-6">
+            <div onClick={() => fileInputRef.current?.click()} className="w-24 h-24 rounded-2xl border-2 border-dashed border-slate-200 hover:border-primary flex flex-col items-center justify-center cursor-pointer overflow-hidden bg-slate-50 transition-all group">
+              {newContest.logo_url ? <img src={newContest.logo_url} className="w-full h-full object-cover" /> : <><ImagePlus className="w-8 h-8 text-slate-400" /><span className="text-[10px] font-bold mt-1">上传图标</span></>}
+            </div>
+            <input type="file" ref={fileInputRef} onChange={handleImageChange} className="hidden" accept="image/*" />
+            <div className="flex-1 space-y-4">
+              <div className="flex flex-col md:flex-row gap-4">
+                <Input value={newContest.id} onChange={(e) => setNewContest({ ...newContest, id: e.target.value })} placeholder="竞赛 ID (不可修改)" className="md:w-1/2" />
+                <Input value={newContest.name} onChange={(e) => setNewContest({ ...newContest, name: e.target.value })} placeholder="竞赛显示名称" className="md:w-1/2" />
+              </div>
+              <div className="flex justify-end"><Button onClick={handleCreate} disabled={createMutation.isPending || !newContest.id}>确认创建</Button></div>
+            </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* Contest List */}
-      <div className="border rounded-lg">
+      {/* List Table */}
+      <Card>
         <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>ID</TableHead>
-              <TableHead>名称</TableHead>
-              <TableHead className="text-right">操作</TableHead>
-            </TableRow>
+          <TableHeader className="bg-slate-50">
+            <TableRow><TableHead className="w-[80px]">图标</TableHead><TableHead>竞赛名称</TableHead><TableHead>赛道数量</TableHead><TableHead className="text-right">管理</TableHead></TableRow>
           </TableHeader>
           <TableBody>
-            {isLoading ? (
-              <TableRow>
-                <TableCell colSpan={3} className="text-center py-8">
-                  <Loader2 className="h-6 w-6 animate-spin mx-auto" />
+            {contests.map((c: Contest) => (
+              <TableRow key={c.id}>
+                <TableCell><ContestLogo url={c.logo_url} name={c.name} id={c.id} size="sm" /></TableCell>
+                <TableCell><div className="font-bold">{c.name}</div><div className="text-[10px] text-slate-400 font-mono">{c.id}</div></TableCell>
+                <TableCell><Badge variant="outline" className="font-mono">{c.tracks?.length || 0}</Badge></TableCell>
+                <TableCell className="text-right space-x-2">
+                  <Button variant="outline" size="sm" onClick={() => setEditingTracksContest(c)} className="text-primary border-primary/20 hover:bg-primary/10">
+                    <FolderTree className="w-4 h-4 mr-1" /> 赛道
+                  </Button>
+                  <Button variant="ghost" size="sm" onClick={() => { if(confirm('删除吗?')) deleteMutation.mutate(c.id); }} className="text-red-500 hover:bg-red-50"><Trash2 className="w-4 h-4" /></Button>
                 </TableCell>
               </TableRow>
-            ) : contests.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={3} className="text-center py-8 text-muted-foreground">
-                  暂无竞赛数据
-                </TableCell>
-              </TableRow>
-            ) : (
-              contests.map((contest: Contest) => (
-                <TableRow key={contest.id}>
-                  <TableCell className="font-mono text-sm">{contest.id}</TableCell>
-                  <TableCell className="font-medium">{contest.name}</TableCell>
-                  <TableCell className="text-right">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                      onClick={() => handleDelete(contest.id)}
-                      disabled={deleteMutation.isPending}
-                    >
-                      <Trash2 className="w-4 h-4 mr-1" />
-                      删除
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
+            ))}
           </TableBody>
         </Table>
-      </div>
+      </Card>
+
+      <Dialog open={!!editingTracksContest} onOpenChange={(open) => !open && setEditingTracksContest(null)}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-xl font-black italic uppercase">
+              <Settings2 className="w-6 h-6 text-primary" />
+              赛道配置中心
+            </DialogTitle>
+            <DialogDescription>正在为【{editingTracksContest?.name}】配置评审赛道。每个赛道将对应一个独立的评分规则 ID。</DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-6 py-4">
+            <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 flex flex-col md:flex-row gap-3">
+              <Input value={newTrack.id} onChange={e => setNewTrack({...newTrack, id: e.target.value})} placeholder="赛道 ID (对应 JSON 文件名)" className="flex-1" />
+              <Input value={newTrack.name} onChange={e => setNewTrack({...newTrack, name: e.target.value})} placeholder="赛道名称 (前端显示)" className="flex-1" />
+              <Button onClick={handleAddTrack} disabled={updateMutation.isPending || !newTrack.id} className="bg-primary shadow-lg">添加赛道</Button>
+            </div>
+
+            {/* Tracks List */}
+            <div className="space-y-2 max-h-60 overflow-y-auto">
+              {(editingTracksContest?.tracks || []).length === 0 ? (
+                <div className="text-center py-10 text-slate-400 italic bg-slate-50/50 rounded-xl border border-dashed border-slate-200 text-sm">尚未添加任何赛道，评审流程将无法在此竞赛下进行。</div>
+              ) : (
+                editingTracksContest?.tracks.map((track: Track) => (
+                  <div key={track.id} className="flex items-center justify-between p-4 bg-white border border-slate-100 rounded-xl hover:shadow-md transition-all group">
+                    <div className="flex items-center gap-4">
+                      <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center font-mono text-[10px] text-slate-500 font-bold uppercase">{track.id.slice(0,2)}</div>
+                      <div>
+                        <p className="font-bold text-slate-900">{track.name}</p>
+                        <p className="text-[10px] font-mono text-slate-400 uppercase tracking-tighter">Rule_Binding: {track.id}.json</p>
+                      </div>
+                    </div>
+                    <Button variant="ghost" size="sm" onClick={() => handleDeleteTrack(track.id)} className="text-red-400 opacity-0 group-hover:opacity-100 transition-opacity hover:text-red-600 hover:bg-red-50">
+                      <X className="w-4 h-4" />
+                    </Button>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -99,10 +99,6 @@ export function ResultPage() {
             <ArrowLeft className="mr-2 h-4 w-4" />
             返回列表
           </Button>
-          <div className="flex items-center gap-2 text-xs font-mono text-primary animate-pulse">
-            <Cpu className="h-3 w-3" />
-            DATA_STREAM // ANALYSIS_COMPLETE
-          </div>
         </div>
 
         {/* Main Report Header */}
@@ -151,7 +147,7 @@ export function ResultPage() {
         {(status !== 'succeeded' && status !== 'success') && (
             <Card className="bg-black/60 backdrop-blur-xl border-white/5 shadow-2xl overflow-hidden font-mono">
                 <div className="bg-white/5 px-4 py-2 border-b border-white/5 flex items-center justify-between">
-                    <span className="text-[12px] text-slate-500 uppercase tracking-[0.2em]">Neural_Processing_Stream</span>
+                    <span className="text-[12px] text-slate-500 uppercase tracking-[0.2em]">输出</span>
                     <div className="flex gap-1">
                         <div className="w-2 h-2 rounded-full bg-red-500/40" />
                         <div className="w-2 h-2 rounded-full bg-amber-500/40" />
@@ -161,8 +157,8 @@ export function ResultPage() {
                 <div className="h-40 overflow-y-auto p-6 text-sm text-primary/80 leading-relaxed custom-scrollbar" ref={scrollBoxRef}>
                     {!progressText ? (
                         <div className="flex items-center gap-3 animate-pulse">
-                            <Loader2 className="w-4 h-4 animate-spin" />
-                            <span className="uppercase tracking-widest text-xs">Initializing Analysis Engine...</span>
+                            <Loader2 className="w-4 h-4 animate-spin stroke-white" />
+                            <span className="uppercase tracking-widest text-xs text-white">正在评分...</span>
                         </div>
                     ) : (
                         <pre className="whitespace-pre-wrap">{progressText}</pre>

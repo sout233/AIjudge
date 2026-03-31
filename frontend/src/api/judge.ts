@@ -12,17 +12,26 @@ export const judgeApi = {
     return client.post("/upload", formData);
   },
 
-  submitJudge: (contestId: string, filename: string, originalFilename?: string): Promise<SubmitResponse> =>
+  submitJudge: (contestId: string, filename: string, originalFilename?: string, trackId?: string): Promise<SubmitResponse> =>
     client.post("/judge", {
       contest_id: contestId,
       filename,
-      original_filename: originalFilename
+      original_filename: originalFilename,
+      track_id: trackId
     }),
 
-  submitBatchJudge: (contestId: string, files: { filename: string; original_filename: string }[]): Promise<{ workflow_run_id: string; filename: string }[]> =>
+  submitBatchJudge: (contestId: string, files: { filename: string; original_filename: string }[], trackId?: string): Promise<{ tasks: { workflow_run_id: string; filename: string }[] }> =>
     client.post("/batch_judge", {
       contest_id: contestId,
       files,
+      track_id: trackId
+    }),
+
+  submitZipBatchJudge: (contestId: string, zipFilename: string, trackId?: string): Promise<{ tasks: { workflow_run_id: string; filename: string }[] }> =>
+    client.post("/zip_batch_judge", {
+      contest_id: contestId,
+      zip_filename: zipFilename,
+      track_id: trackId
     }),
 
   getStatus: (workflowRunId: string): Promise<JudgeStatusResponse> =>

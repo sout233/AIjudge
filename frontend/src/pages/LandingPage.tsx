@@ -22,6 +22,7 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { RichContent, MarkdownPreview } from '@/components/ui/rich-editor';
+import { ContestLogo } from '@/components/ContestLogo';
 import type { Contest } from '@/types';
 
 export function LandingPage() {
@@ -423,17 +424,23 @@ function ContestGrid({
       {contests.map((contest) => (
         <Card
           key={contest.id}
-          className={`cursor-pointer transition-all hover:shadow-lg ${
+          className={`cursor-pointer transition-all hover:shadow-lg group overflow-hidden ${
             selectedId === contest.id ? 'ring-2 ring-cyan-500' : ''
           }`}
           onClick={() => onSelect(contest)}
         >
           <CardHeader className="pb-3">
-            <div className="flex items-start justify-between">
-              <CardTitle className="text-lg line-clamp-2">{contest.name}</CardTitle>
-              {contest.status === 'active' && (
-                <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-              )}
+            <div className="flex items-center gap-4">
+              <ContestLogo url={contest.logo_url} name={contest.name} id={contest.id} size="md" />
+              <div className="flex-1 min-w-0">
+                <CardTitle className="text-lg line-clamp-1 group-hover:text-cyan-600 transition-colors">{contest.name}</CardTitle>
+                {contest.status === 'active' && (
+                  <div className="flex items-center gap-1.5 mt-1 text-[10px] font-bold text-green-600 uppercase tracking-widest">
+                    <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+                    Active
+                  </div>
+                )}
+              </div>
             </div>
           </CardHeader>
           <CardContent>

@@ -11,14 +11,15 @@ export interface BatchFile {
   workflowRunId?: string;
   uploadedName?: string;
 }
-
 interface BatchState {
   currentBatch: BatchFile[];
   selectedContestId: string | null;
+  selectedTrackId: string | null;
   isProcessing: boolean;
 
   // Actions
   setContestId: (id: string | null) => void;
+  setTrackId: (id: string | null) => void;
   setFiles: (files: BatchFile[]) => void;
   updateFileStatus: (id: string, updates: Partial<BatchFile>) => void;
   setIsProcessing: (loading: boolean) => void;
@@ -30,9 +31,11 @@ export const useBatchStore = create<BatchState>()(
     (set) => ({
       currentBatch: [],
       selectedContestId: null,
+      selectedTrackId: null,
       isProcessing: false,
 
-      setContestId: (id) => set({ selectedContestId: id }),
+      setContestId: (id) => set({ selectedContestId: id, selectedTrackId: null }),
+      setTrackId: (id) => set({ selectedTrackId: id }),
       setFiles: (files) => set({ currentBatch: files }),
       updateFileStatus: (id, updates) => set((state) => ({
         currentBatch: state.currentBatch.map(f => f.id === id ? { ...f, ...updates } : f)
@@ -45,6 +48,7 @@ export const useBatchStore = create<BatchState>()(
       partialize: (state) => ({
         currentBatch: state.currentBatch.map(({ file, ...rest }) => rest),
         selectedContestId: state.selectedContestId,
+        selectedTrackId: state.selectedTrackId,
         isProcessing: state.isProcessing,
       }),
     }
