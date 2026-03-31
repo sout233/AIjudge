@@ -1,5 +1,5 @@
 import { useRef, useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { Download, FileText, AlertTriangle, XCircle, Loader2, Users, User, Award } from 'lucide-react';
 import { useJudgePolling } from '@/hooks/useJudgePolling';
 import { judgeApi } from '@/api/judge';
@@ -24,6 +24,7 @@ const isMultiJudgeResult = (data: unknown): data is MultiJudgeResult => {
 
 export function ResultPage() {
   const { workflowRunId } = useParams<{ workflowRunId: string }>();
+  const navigate = useNavigate();
   const scrollBoxRef = useRef<HTMLDivElement>(null);
   const [downloading, setDownloading] = useState(false);
 
@@ -160,6 +161,19 @@ export function ResultPage() {
             </Alert>
           </div>
         ) : null}
+
+        {/* 完成按钮 - 跳转到提交页面进行下一次评审 */}
+        {result && (
+          <div className="flex justify-center pt-8 pb-4">
+            <Button
+              size="lg"
+              onClick={() => navigate('/submit')}
+              className="px-8 h-12 text-base font-semibold bg-cyan-600 hover:bg-cyan-500 text-white"
+            >
+              完成，进行下一次评审
+            </Button>
+          </div>
+        )}
       </div>
     </div>
   );
