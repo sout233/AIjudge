@@ -2,14 +2,20 @@ import hashlib
 import json
 import os
 import uuid
+import zipfile
+import asyncio
+from concurrent.futures import ThreadPoolExecutor
 
 from fastapi import BackgroundTasks, HTTPException, UploadFile
 
-from app.core.config import UPLOAD_DIR, RESULT_DIR, RULE_DIR
+from app.config.config import UPLOAD_DIR, RESULT_DIR, RULE_DIR
 from app.clients.dify import run_workflow_with_file, upload_file_to_dify
-from app.models.schemas import JudgeRequest, JudgeResponse, WorkflowStatus
+from app.models.schemas import JudgeRequest, JudgeResponse, WorkflowStatus, BatchJudgeRequest, ZipBatchJudgeRequest
 from app.services.duplicate import check_duplication
 from app.utils.storage import load_contests
+
+# 全局并发控制信号量，限制并发数为 3
+JUDGE_SEMAPHORE = asyncio.Semaphore(3)
 
 
 def _get_track_rule_id(contest_id: str, track_id: str | None) -> str:
@@ -162,6 +168,558 @@ def _save_error(result_path: str, data: JudgeRequest, error_msg: str):
             ensure_ascii=False,
             indent=2,
         )
+
+
+async def batch_start_judge(data: BatchJudgeRequest, background_tasks: BackgroundTasks, current_user_name: str):
+    """批量评分多个文件（带并发控制，最多3个并发）"""
+    contests = load_contests()
+    contest = next((c for c in contests if c["id"] == data.contest_id), None)
+    if not contest:
+        raise HTTPException(404, "竞赛不存在")
+
+    # 获取赛道规则ID
+    rule_id = _get_track_rule_id(data.contest_id, data.track_id)
+
+    # 如果指定了赛道，验证赛道是否存在
+    if data.track_id:
+        tracks = contest.get("tracks", [])
+        track = next((t for t in tracks if t.get("id") == data.track_id), None)
+        if not track:
+            raise HTTPException(404, "赛道不存在")
+
+    rule_path = os.path.join(RULE_DIR, f"{rule_id}.json")
+    if not os.path.exists(rule_path):
+        raise HTTPException(404, "该竞赛/赛道尚未配置评分规则")
+
+    with open(rule_path, "r", encoding="utf-8") as f:
+        raw_json = json.load(f)
+    score_rule_json = json.dumps(raw_json, ensure_ascii=False, separators=(",", ":"))
+
+    # 创建任务清单
+    tasks_manifest = []
+    
+    for filename in data.filenames:
+        file_path = os.path.join(UPLOAD_DIR, filename)
+        if not os.path.exists(file_path):
+            tasks_manifest.append({
+                "filename": filename,
+                "status": "error",
+                "error": "文件不存在",
+                "workflow_run_id": None
+            })
+            continue
+
+        # 检查重复
+        is_dup, dup_file, similarity = check_duplication(data.contest_id, filename)
+        if is_dup:
+            tasks_manifest.append({
+                "filename": filename,
+                "status": "error",
+                "error": f"检测到内容重复，与文件 '{dup_file}' 的相似度为 {similarity:.2%}",
+                "workflow_run_id": None
+            })
+            continue
+
+        workflow_run_id = uuid.uuid4().hex
+        result_path = os.path.join(RESULT_DIR, f"{workflow_run_id}.json")
+        
+        # 初始化结果文件
+        _init_batch_result(result_path, data.contest_id, data.track_id, filename)
+        
+        tasks_manifest.append({
+            "filename": filename,
+            "status": "queued",
+            "error": None,
+            "workflow_run_id": workflow_run_id,
+            "result_path": result_path,
+            "file_path": file_path
+        })
+
+    # 保存任务清单
+    manifest_id = uuid.uuid4().hex
+    manifest_path = os.path.join(RESULT_DIR, f"manifest_{manifest_id}.json")
+    with open(manifest_path, "w", encoding="utf-8") as f:
+        json.dump({
+            "manifest_id": manifest_id,
+            "contest_id": data.contest_id,
+            "track_id": data.track_id,
+            "total": len(tasks_manifest),
+            "tasks": tasks_manifest
+        }, f, ensure_ascii=False, indent=2)
+
+    # 启动后台任务，使用信号量控制并发
+    def run_batch_with_concurrency():
+        asyncio.run(_execute_batch_tasks(
+            tasks_manifest, score_rule_json, current_user_name, data.contest_id
+        ))
+
+    background_tasks.add_task(run_batch_with_concurrency)
+
+    return {
+        "manifest_id": manifest_id,
+        "total": len(tasks_manifest),
+        "tasks": [{"workflow_run_id": t["workflow_run_id"], "filename": t["filename"]} 
+                  for t in tasks_manifest if t["workflow_run_id"]]
+    }
+
+
+async def _execute_batch_tasks(tasks_manifest: list, score_rule_json: str, current_user_name: str, contest_id: str):
+    """执行批量任务，使用信号量控制并发数（最多3个）"""
+    
+    async def process_single_task(task: dict):
+        if task["status"] != "queued" or not task.get("workflow_run_id"):
+            return
+        
+        async with JUDGE_SEMAPHORE:  # 使用信号量限制并发
+            try:
+                # 更新状态为运行中
+                _update_task_status(task["result_path"], "running", "任务开始执行")
+                
+                # 执行评分
+                file_id = upload_file_to_dify(task["file_path"], task["filename"], current_user_name)
+                result = run_workflow_with_file(file_id, score_rule_json, current_user_name)
+                
+                # 保存成功结果
+                _save_batch_result(
+                    task["result_path"], 
+                    contest_id, 
+                    None, 
+                    task["filename"], 
+                    result
+                )
+            except Exception as e:
+                # 保存错误结果
+                _save_batch_error(
+                    task["result_path"], 
+                    contest_id, 
+                    None, 
+                    task["filename"], 
+                    str(e)
+                )
+    
+    # 创建所有任务
+    tasks = [process_single_task(task) for task in tasks_manifest]
+    
+    # 并发执行，但受信号量限制
+    await asyncio.gather(*tasks)
+
+
+def _update_task_status(result_path: str, status: str, message: str):
+    """更新任务状态"""
+    try:
+        if os.path.exists(result_path):
+            with open(result_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+        else:
+            data = {}
+        
+        data["status"] = status
+        if "messages" not in data:
+            data["messages"] = []
+        data["messages"].append({"text": message})
+        
+        with open(result_path, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        print(f"[judge] 更新任务状态失败: {e}")
+
+
+def _init_batch_result(result_path: str, contest_id: str, track_id: str | None, filename: str):
+    """初始化批量评分结果文件"""
+    with open(result_path, "w", encoding="utf-8") as f:
+        json.dump(
+            {
+                "status": "pending",
+                "elapsed_time": 0,
+                "messages": [{"text": "任务已排队，等待执行"}],
+                "workflow_data": {},
+                "metadata": {
+                    "contest_id": contest_id,
+                    "track_id": track_id,
+                    "filename": filename,
+                },
+            },
+            f,
+            ensure_ascii=False,
+            indent=2,
+        )
+
+
+def _save_batch_result(result_path: str, contest_id: str, track_id: str | None, filename: str, result: dict):
+    """保存批量评分结果"""
+    with open(result_path, "w", encoding="utf-8") as f:
+        json.dump(
+            {
+                "status": result.get("status", "success"),
+                "elapsed_time": result.get("elapsed_time", 0),
+                "messages": result.get("messages", []),
+                "workflow_data": result,
+                "metadata": {
+                    "contest_id": contest_id,
+                    "track_id": track_id,
+                    "filename": filename,
+                },
+            },
+            f,
+            ensure_ascii=False,
+            indent=2,
+        )
+
+
+def _save_batch_error(result_path: str, contest_id: str, track_id: str | None, filename: str, error_msg: str):
+    """保存批量评分错误结果"""
+    with open(result_path, "w", encoding="utf-8") as f:
+        json.dump(
+            {
+                "status": "error",
+                "elapsed_time": 0,
+                "messages": [{"text": error_msg}],
+                "workflow_data": {},
+                "metadata": {
+                    "contest_id": contest_id,
+                    "track_id": track_id,
+                    "filename": filename,
+                },
+            },
+            f,
+            ensure_ascii=False,
+            indent=2,
+        )
+
+
+async def zip_batch_start_judge(data: ZipBatchJudgeRequest, background_tasks: BackgroundTasks, current_user_name: str):
+    """ZIP 批量评分：解压 zip 文件，提取清单，逐个评分（并发控制最多3个）"""
+    zip_path = os.path.join(UPLOAD_DIR, data.zip_filename)
+    if not os.path.exists(zip_path):
+        raise HTTPException(404, "ZIP 文件不存在")
+
+    # 验证是 zip 文件
+    if not zipfile.is_zipfile(zip_path):
+        raise HTTPException(400, "上传的文件不是有效的 ZIP 格式")
+
+    contests = load_contests()
+    contest = next((c for c in contests if c["id"] == data.contest_id), None)
+    if not contest:
+        raise HTTPException(404, "竞赛不存在")
+
+    # 获取赛道规则ID
+    rule_id = _get_track_rule_id(data.contest_id, data.track_id)
+
+    # 如果指定了赛道，验证赛道是否存在
+    if data.track_id:
+        tracks = contest.get("tracks", [])
+        track = next((t for t in tracks if t.get("id") == data.track_id), None)
+        if not track:
+            raise HTTPException(404, "赛道不存在")
+
+    rule_path = os.path.join(RULE_DIR, f"{rule_id}.json")
+    if not os.path.exists(rule_path):
+        raise HTTPException(404, "该竞赛/赛道尚未配置评分规则")
+
+    with open(rule_path, "r", encoding="utf-8") as f:
+        raw_json = json.load(f)
+    score_rule_json = json.dumps(raw_json, ensure_ascii=False, separators=(",", ":"))
+
+    # 解压 zip 文件
+    extract_dir = os.path.join(UPLOAD_DIR, f"extracted_{uuid.uuid4().hex}")
+    os.makedirs(extract_dir, exist_ok=True)
+    
+    extracted_files = []
+    try:
+        with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+            # 安全检查：防止路径遍历攻击
+            for member in zip_ref.namelist():
+                member_path = os.path.join(extract_dir, member)
+                if not member_path.startswith(os.path.abspath(extract_dir)):
+                    raise HTTPException(400, "ZIP 文件包含不安全的路径")
+            
+            zip_ref.extractall(extract_dir)
+            
+            # 收集所有解压后的文件
+            for root, dirs, files in os.walk(extract_dir):
+                for file in files:
+                    file_path = os.path.join(root, file)
+                    # 计算文件 hash 作为新文件名
+                    with open(file_path, 'rb') as f:
+                        file_hash = hashlib.md5(f.read()).hexdigest()
+                    
+                    ext = os.path.splitext(file)[1].lower()
+                    new_filename = f"{file_hash}{ext}"
+                    new_path = os.path.join(UPLOAD_DIR, new_filename)
+                    
+                    # 如果文件已存在（相同内容），直接使用缓存
+                    if not os.path.exists(new_path):
+                        import shutil
+                        shutil.move(file_path, new_path)
+                    
+                    extracted_files.append({
+                        "original_name": file,
+                        "filename": new_filename,
+                        "path": new_path
+                    })
+    except zipfile.BadZipFile:
+        raise HTTPException(400, "ZIP 文件损坏或格式不正确")
+    finally:
+        # 清理解压目录
+        import shutil
+        if os.path.exists(extract_dir):
+            shutil.rmtree(extract_dir)
+
+    if not extracted_files:
+        raise HTTPException(400, "ZIP 文件中没有找到可评分的文件")
+
+    # 创建任务清单
+    tasks_manifest = []
+    
+    for file_info in extracted_files:
+        filename = file_info["filename"]
+        original_name = file_info["original_name"]
+        file_path = file_info["path"]
+
+        # 检查重复
+        is_dup, dup_file, similarity = check_duplication(data.contest_id, filename)
+        if is_dup:
+            tasks_manifest.append({
+                "filename": filename,
+                "original_name": original_name,
+                "status": "error",
+                "error": f"检测到内容重复，与文件 '{dup_file}' 的相似度为 {similarity:.2%}",
+                "workflow_run_id": None
+            })
+            continue
+
+        workflow_run_id = uuid.uuid4().hex
+        result_path = os.path.join(RESULT_DIR, f"{workflow_run_id}.json")
+        
+        # 初始化结果文件
+        _init_zip_batch_result(result_path, data.contest_id, data.track_id, filename, original_name)
+        
+        tasks_manifest.append({
+            "filename": filename,
+            "original_name": original_name,
+            "status": "queued",
+            "error": None,
+            "workflow_run_id": workflow_run_id,
+            "result_path": result_path,
+            "file_path": file_path
+        })
+
+    # 保存任务清单
+    manifest_id = uuid.uuid4().hex
+    manifest_path = os.path.join(RESULT_DIR, f"zip_manifest_{manifest_id}.json")
+    with open(manifest_path, "w", encoding="utf-8") as f:
+        json.dump({
+            "manifest_id": manifest_id,
+            "type": "zip_batch",
+            "contest_id": data.contest_id,
+            "track_id": data.track_id,
+            "zip_filename": data.zip_filename,
+            "total": len(tasks_manifest),
+            "tasks": tasks_manifest
+        }, f, ensure_ascii=False, indent=2)
+
+    # 启动后台任务，使用信号量控制并发
+    def run_zip_batch_with_concurrency():
+        asyncio.run(_execute_zip_batch_tasks(
+            tasks_manifest, score_rule_json, current_user_name, data.contest_id
+        ))
+
+    background_tasks.add_task(run_zip_batch_with_concurrency)
+
+    return {
+        "manifest_id": manifest_id,
+        "type": "zip_batch",
+        "total": len(tasks_manifest),
+        "queued": len([t for t in tasks_manifest if t["status"] == "queued"]),
+        "skipped": len([t for t in tasks_manifest if t["status"] == "error"]),
+        "tasks": [{"workflow_run_id": t["workflow_run_id"], "filename": t["original_name"]} 
+                  for t in tasks_manifest if t["workflow_run_id"]]
+    }
+
+
+async def _execute_zip_batch_tasks(tasks_manifest: list, score_rule_json: str, current_user_name: str, contest_id: str):
+    """执行 ZIP 批量任务，使用信号量控制并发数（最多3个）"""
+    
+    async def process_single_task(task: dict):
+        if task["status"] != "queued" or not task.get("workflow_run_id"):
+            return
+        
+        async with JUDGE_SEMAPHORE:  # 使用信号量限制并发为 3
+            try:
+                # 更新状态为运行中
+                _update_zip_task_status(task["result_path"], "running", "任务开始执行")
+                
+                # 执行评分
+                file_id = upload_file_to_dify(task["file_path"], task["filename"], current_user_name)
+                result = run_workflow_with_file(file_id, score_rule_json, current_user_name)
+                
+                # 保存成功结果
+                _save_zip_batch_result(
+                    task["result_path"], 
+                    contest_id, 
+                    None, 
+                    task["filename"],
+                    task["original_name"],
+                    result
+                )
+            except Exception as e:
+                # 保存错误结果
+                _save_zip_batch_error(
+                    task["result_path"], 
+                    contest_id, 
+                    None, 
+                    task["filename"],
+                    task["original_name"],
+                    str(e)
+                )
+    
+    # 创建所有任务
+    tasks = [process_single_task(task) for task in tasks_manifest]
+    
+    # 并发执行，但受信号量限制
+    await asyncio.gather(*tasks)
+
+
+def _init_zip_batch_result(result_path: str, contest_id: str, track_id: str | None, filename: str, original_name: str):
+    """初始化 ZIP 批量评分结果文件"""
+    with open(result_path, "w", encoding="utf-8") as f:
+        json.dump(
+            {
+                "status": "pending",
+                "elapsed_time": 0,
+                "messages": [{"text": "任务已排队，等待执行"}],
+                "workflow_data": {},
+                "metadata": {
+                    "contest_id": contest_id,
+                    "track_id": track_id,
+                    "filename": filename,
+                    "original_name": original_name,
+                },
+            },
+            f,
+            ensure_ascii=False,
+            indent=2,
+        )
+
+
+def _update_zip_task_status(result_path: str, status: str, message: str):
+    """更新 ZIP 批量任务状态"""
+    try:
+        if os.path.exists(result_path):
+            with open(result_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+        else:
+            data = {}
+        
+        data["status"] = status
+        if "messages" not in data:
+            data["messages"] = []
+        data["messages"].append({"text": message})
+        
+        with open(result_path, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        print(f"[judge] 更新任务状态失败: {e}")
+
+
+def _save_zip_batch_result(result_path: str, contest_id: str, track_id: str | None, filename: str, original_name: str, result: dict):
+    """保存 ZIP 批量评分结果"""
+    with open(result_path, "w", encoding="utf-8") as f:
+        json.dump(
+            {
+                "status": result.get("status", "success"),
+                "elapsed_time": result.get("elapsed_time", 0),
+                "messages": result.get("messages", []),
+                "workflow_data": result,
+                "metadata": {
+                    "contest_id": contest_id,
+                    "track_id": track_id,
+                    "filename": filename,
+                    "original_name": original_name,
+                },
+            },
+            f,
+            ensure_ascii=False,
+            indent=2,
+        )
+
+
+def _save_zip_batch_error(result_path: str, contest_id: str, track_id: str | None, filename: str, original_name: str, error_msg: str):
+    """保存 ZIP 批量评分错误结果"""
+    with open(result_path, "w", encoding="utf-8") as f:
+        json.dump(
+            {
+                "status": "error",
+                "elapsed_time": 0,
+                "messages": [{"text": error_msg}],
+                "workflow_data": {},
+                "metadata": {
+                    "contest_id": contest_id,
+                    "track_id": track_id,
+                    "filename": filename,
+                    "original_name": original_name,
+                },
+            },
+            f,
+            ensure_ascii=False,
+            indent=2,
+        )
+
+
+async def get_zip_batch_status(manifest_id: str):
+    """获取 ZIP 批量任务的总体状态和进度"""
+    manifest_path = os.path.join(RESULT_DIR, f"zip_manifest_{manifest_id}.json")
+    if not os.path.exists(manifest_path):
+        raise HTTPException(404, "任务清单不存在")
+    
+    with open(manifest_path, "r", encoding="utf-8") as f:
+        manifest = json.load(f)
+    
+    # 统计各状态的任务数量
+    total = manifest["total"]
+    tasks = manifest.get("tasks", [])
+    
+    completed = 0
+    failed = 0
+    running = 0
+    pending = 0
+    
+    for task in tasks:
+        if task["status"] == "error":
+            failed += 1
+        elif task["status"] == "queued":
+            pending += 1
+        else:
+            # 检查实际结果文件状态
+            if task.get("result_path") and os.path.exists(task["result_path"]):
+                try:
+                    with open(task["result_path"], "r", encoding="utf-8") as rf:
+                        result_data = json.load(rf)
+                    status = result_data.get("status", "")
+                    if status in ["success", "succeeded"]:
+                        completed += 1
+                    elif status == "error":
+                        failed += 1
+                    elif status == "running":
+                        running += 1
+                    else:
+                        pending += 1
+                except:
+                    pending += 1
+            else:
+                pending += 1
+    
+    return {
+        "manifest_id": manifest_id,
+        "type": "zip_batch",
+        "total": total,
+        "completed": completed,
+        "failed": failed,
+        "running": running,
+        "pending": pending,
+        "progress": f"{completed + failed}/{total}",
+        "tasks": tasks
+    }
 
 
 async def get_status(workflow_run_id: str):

@@ -7,6 +7,8 @@ import { ContestsPage } from '@/pages/ContestsPage';
 import { HomePage } from '@/pages/HomePage';
 import { SubmitWorkPage } from '@/pages/SubmitWorkPage';
 import { ResultPage } from '@/pages/ResultPage';
+import { BatchResultPage } from '@/pages/BatchResultPage';
+import { ZipBatchResultPage } from '@/pages/ZipBatchResultPage';
 import { CheckCertificatePage } from '@/pages/CheckCertificatePage';
 import { AdminLayout } from '@/pages/admin/AdminLayout';
 import { ContestManagement } from '@/pages/admin/ContestManagement';
@@ -25,6 +27,12 @@ function App() {
 
         {/* 公开结果页：查看评审结果（本地存储） */}
         <Route path="/result/:workflowRunId" element={<ResultPage />} />
+
+        {/* 批量结果页：查看批量评审结果 */}
+        <Route path="/batch-result/:workflowRunIds" element={<BatchResultPage />} />
+
+        {/* ZIP 批量结果页：查看 ZIP 批量评审结果 */}
+        <Route path="/zip-batch-result/:manifestId" element={<ZipBatchResultPage />} />
 
         {/* 证书核验页：公开访问 */}
         <Route path="/check-certificate" element={<CheckCertificatePage />} />

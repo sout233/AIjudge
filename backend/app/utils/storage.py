@@ -2,7 +2,7 @@ import json
 import os
 from typing import Any
 
-from app.core.config import CONTEST_FILE
+from app.config.config import CONTEST_FILE
 
 
 def load_contests() -> list:

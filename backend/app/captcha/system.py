@@ -79,7 +79,7 @@ class CaptchaSystem:
 
 def get_target_coords(model_path, img_path, instruction_text):
     """
-    核心识别函数：输入模型、图片路径、提示词
+    核心识别函数：输入模型、图片路径(或内存图像)、提示词
     返回: [x, y] 坐标 (相对于图片左上角) 或 False
     """
     try:

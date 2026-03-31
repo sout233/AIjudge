@@ -4,7 +4,7 @@ import traceback
 import httpx
 from fastapi import APIRouter, HTTPException
 
-from app.core.config import DIFY_BASE_URL
+from app.config.config import DIFY_BASE_URL
 from app.api.deps import create_access_token
 from app.models.schemas import LoginSchema
 

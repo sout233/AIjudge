@@ -1,10 +1,52 @@
 import requests
+import os
 from mimetypes import guess_type
-from app.core.config import (
+from app.config.config import (
     DIFY_BASE_URL,
     DIFY_MAIN_WORKFLOW_APIKEY,
     DIFY_EXTRACT_WORKFLOW_APIKEY,
 )
+
+# 自定义 MIME 类型映射（补充系统可能缺失的类型）
+CUSTOM_MIME_TYPES = {
+    # Microsoft Word
+    '.doc': 'application/msword',
+    '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    # Microsoft PowerPoint
+    '.ppt': 'application/vnd.ms-powerpoint',
+    '.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    # Microsoft Excel
+    '.xls': 'application/vnd.ms-excel',
+    '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    # PDF
+    '.pdf': 'application/pdf',
+    # 文本文件
+    '.txt': 'text/plain',
+    '.md': 'text/markdown',
+    # 图片
+    '.jpg': 'image/jpeg',
+    '.jpeg': 'image/jpeg',
+    '.png': 'image/png',
+    '.gif': 'image/gif',
+    '.webp': 'image/webp',
+}
+
+
+def get_mime_type(file_path: str) -> str:
+    """获取文件的 MIME 类型，优先使用自定义映射"""
+    ext = os.path.splitext(file_path)[1].lower()
+    
+    # 先查自定义映射
+    if ext in CUSTOM_MIME_TYPES:
+        return CUSTOM_MIME_TYPES[ext]
+    
+    # 再使用系统 mimetypes
+    mime_type, _ = guess_type(file_path)
+    if mime_type:
+        return mime_type
+    
+    # 默认类型
+    return "application/octet-stream"
 
 
 def upload_file_to_dify(file_path: str, filename: str, user: str):
@@ -12,9 +54,7 @@ def upload_file_to_dify(file_path: str, filename: str, user: str):
     if not user:
         user = "unknown"
     url = f"{DIFY_BASE_URL}/files/upload"
-    mime_type, _ = guess_type(file_path)
-    if not mime_type:
-        mime_type = "application/octet-stream"
+    mime_type = get_mime_type(file_path)
 
     files = {"file": (filename, open(file_path, "rb"), mime_type)}
     payload = {"user": user}

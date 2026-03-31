@@ -2,7 +2,7 @@ import json
 import os
 from fastapi import HTTPException
 
-from app.core.config import ANNOUNCE_DIR
+from app.config.config import ANNOUNCE_DIR
 
 
 def get_announcement(contest_id: str):

@@ -5,8 +5,6 @@ from .schemas import (
     WorkflowStatus,
     LoginSchema,
     VerifyInitReq,
-    VerifySubmitReq,
-    Coordinate,
 )
 
 __all__ = [
@@ -16,6 +14,4 @@ __all__ = [
     "WorkflowStatus",
     "LoginSchema",
     "VerifyInitReq",
-    "VerifySubmitReq",
-    "Coordinate",
 ]

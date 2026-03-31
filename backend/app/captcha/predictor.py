@@ -1,4 +1,5 @@
 import cv2
+import os
 import torch
 import torch.nn as nn
 from PIL import Image
@@ -26,12 +27,11 @@ IDX_TO_ORIENTATION = {0: "正常", 1: "旋转"}
 
 class CaptchaPredictor:
     def __init__(self, model_path):
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        # 服务端默认使用 CPU，只有显式开启时才尝试 CUDA。
+        use_cuda = os.getenv("CAPTCHA_USE_CUDA", "0").strip().lower() in {"1", "true", "yes", "on"}
+        self.device = torch.device("cuda" if use_cuda and torch.cuda.is_available() else "cpu")
         self.model = MultiTaskResNet(num_chars=62)
-        if torch.cuda.is_available():
-            self.model.load_state_dict(torch.load(model_path))
-        else:
-            self.model.load_state_dict(torch.load(model_path, map_location="cpu"))
+        self.model.load_state_dict(torch.load(model_path, map_location=self.device))
         self.model.to(self.device)
         self.model.eval()
 

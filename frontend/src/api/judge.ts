@@ -103,4 +103,44 @@ export const judgeApi = {
     formData.append('file', file);
     return client.post('/verify/upload-extract', formData);
   },
+  submitBatchJudge: (contestId: string, filenames: string[], trackId?: string): Promise<{ workflow_run_id: string; filename: string }[]> =>
+    client.post("/batch_judge", {
+      contest_id: contestId,
+      filenames,
+      track_id: trackId,
+    }),
+
+  submitZipBatchJudge: (contestId: string, zipFilename: string, trackId?: string): Promise<{
+    manifest_id: string;
+    type: string;
+    total: number;
+    queued: number;
+    skipped: number;
+    tasks: { workflow_run_id: string; filename: string }[];
+  }> =>
+    client.post("/zip_batch_judge", {
+      contest_id: contestId,
+      zip_filename: zipFilename,
+      track_id: trackId,
+    }),
+
+  getZipBatchStatus: (manifestId: string): Promise<{
+    manifest_id: string;
+    type: string;
+    total: number;
+    completed: number;
+    failed: number;
+    running: number;
+    pending: number;
+    progress: string;
+    tasks: {
+      filename: string;
+      original_name: string;
+      status: string;
+      error: string | null;
+      workflow_run_id: string;
+    }[];
+  }> =>
+    client.get(`/zip_batch/${manifestId}/status`),
+
 };

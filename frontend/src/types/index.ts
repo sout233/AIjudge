@@ -75,11 +75,27 @@ export interface JudgeDimension {
   points: JudgePoint[];
 }
 
+// 单评委结果（旧格式，向后兼容）
 export interface JudgeResult {
   total_score: number;
   max_score: number;
   overall_comment: string;
   dimensions: JudgeDimension[];
+}
+
+// 多评委结构（新格式）
+export interface JudgeEvaluation {
+  judge_tag: 'A' | 'B' | 'C';
+  judge_style: string;
+  total_score: number;
+  max_score: number;
+  overall_comment: string;
+  dimensions: JudgeDimension[];
+}
+
+export interface MultiJudgeResult {
+  project_name: string;
+  evaluations: JudgeEvaluation[];
 }
 
 export interface WorkflowMessage {
@@ -95,7 +111,7 @@ export interface JudgeStatusResponse {
     workflow_data?: {
       data?: {
         outputs?: {
-          text?: string | JudgeResult;
+          text?: string | JudgeResult | MultiJudgeResult;
         };
         error?: string;
       };

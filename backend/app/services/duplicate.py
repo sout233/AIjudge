@@ -4,7 +4,7 @@ import os
 
 from pypdf import PdfReader
 
-from app.core.config import UPLOAD_DIR, RESULT_DIR
+from app.config.config import UPLOAD_DIR, RESULT_DIR
 
 
 def extract_text_from_pdf(file_path: str) -> str:

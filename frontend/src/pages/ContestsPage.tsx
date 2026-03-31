@@ -69,8 +69,10 @@ export function ContestsPage() {
     enabled: !!selectedContest,
   });
 
-  const activeContests = contests.filter((c) => c.status === 'active');
-  const upcomingContests = contests.filter((c) => c.status === 'upcoming');
+  // 只显示已上线的竞赛
+  const publishedContests = contests.filter((c) => c.is_published);
+  const activeContests = publishedContests.filter((c) => c.status === 'active');
+  const upcomingContests = publishedContests.filter((c) => c.status === 'upcoming');
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -203,7 +205,7 @@ export function ContestsPage() {
 
           <TabsContent value="all" className="mt-0">
             <ContestGrid
-              contests={contests}
+              contests={publishedContests}
               isLoading={isLoading}
               onSelect={setSelectedContest}
               selectedId={selectedContest?.id}

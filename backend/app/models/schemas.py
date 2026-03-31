@@ -28,6 +28,18 @@ class JudgeRequest(BaseModel):
     track_id: Optional[str] = None  # 选择的赛道ID
 
 
+class BatchJudgeRequest(BaseModel):
+    filenames: List[str]
+    contest_id: str
+    track_id: Optional[str] = None  # 选择的赛道ID
+
+
+class ZipBatchJudgeRequest(BaseModel):
+    zip_filename: str
+    contest_id: str
+    track_id: Optional[str] = None  # 选择的赛道ID
+
+
 class JudgeResponse(BaseModel):
     workflow_run_id: str
     filename: str
@@ -53,11 +65,3 @@ class VerifyInitReq(BaseModel):
     keyword: str
 
 
-class Coordinate(BaseModel):
-    x: float
-    y: float
-
-
-class VerifySubmitReq(BaseModel):
-    session_id: str
-    points: list[Coordinate] = []

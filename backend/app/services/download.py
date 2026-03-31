@@ -7,7 +7,7 @@ from fastapi import HTTPException
 from jinja2 import Environment, FileSystemLoader
 from weasyprint import HTML
 
-from app.core.config import RESULT_DIR, REPORT_TEMPLATE_DIR
+from app.config.config import RESULT_DIR, REPORT_TEMPLATE_DIR
 
 env = Environment(loader=FileSystemLoader(searchpath=REPORT_TEMPLATE_DIR))
 PDF_CACHE_DIR = os.path.join(RESULT_DIR, "pdf_cache")

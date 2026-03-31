@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 from typing import Optional
 from fastapi import HTTPException, UploadFile
 
-from app.core.config import RULE_DIR, ANNOUNCE_DIR
+from app.config.config import RULE_DIR, ANNOUNCE_DIR
 from app.models.schemas import Contest, Track
 from app.utils.storage import load_contests, save_contests
 

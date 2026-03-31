@@ -6,7 +6,7 @@ import traceback
 
 from fastapi import HTTPException, UploadFile
 
-from app.core.config import RULE_DIR, UPLOAD_DIR
+from app.config.config import RULE_DIR, UPLOAD_DIR
 from app.clients.dify import upload_file_to_dify, run_extract_rule
 
 

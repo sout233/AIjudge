@@ -1,7 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef } from 'react';
 import { judgeApi } from '@/api/judge';
-import type { JudgeResult, JudgeStatusResponse } from '@/types';
+import type { JudgeResult, JudgeStatusResponse, MultiJudgeResult } from '@/types';
 
 const STATUS_MAP: Record<string, string> = {
   pending: '等待',
@@ -12,11 +12,12 @@ const STATUS_MAP: Record<string, string> = {
   error: '错误',
 };
 
-const parseResult = (data: JudgeStatusResponse): JudgeResult | null => {
+const parseResult = (data: JudgeStatusResponse): JudgeResult | MultiJudgeResult | null => {
   try {
     const deepOutput = data?.workflow_data?.workflow_data?.data?.outputs?.text;
     if (deepOutput) {
-      return typeof deepOutput === 'string' ? JSON.parse(deepOutput) : deepOutput;
+      const parsed = typeof deepOutput === 'string' ? JSON.parse(deepOutput) : deepOutput;
+      return parsed;
     }
     return null;
   } catch {

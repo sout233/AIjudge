@@ -4,7 +4,7 @@ from fastapi import HTTPException, Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import JWTError, jwt
 
-from app.core.config import ACCESS_TOKEN_EXPIRE_DAYS, SECRET_KEY, ALGORITHM
+from app.config.config import ACCESS_TOKEN_EXPIRE_DAYS, SECRET_KEY, ALGORITHM
 
 security = HTTPBearer()
 

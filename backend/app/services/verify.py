@@ -1,5 +1,7 @@
-import base64
+import os
 import random
+import socket
+import tempfile
 import time
 from typing import Dict
 
@@ -15,21 +17,63 @@ from app.captcha import (
     calculate_display_ratio,
     generate_tcaptcha_track,
 )
+from app.config.config import BASE_DIR
 from app.models.schemas import VerifyInitReq
 
 SYSTEM_USERNAME = "13913517504"
 SYSTEM_PASSWORD = "200506040@Wzj"
 YIDUN_LOGIN_URL = "https://register.ccopyright.com.cn/login.html"
+CAPTCHA_MODEL_PATH = os.path.join(BASE_DIR, "captcha_multi_task.pth")
 
 
-def get_browser_options(headless: bool = False):
+def _env_flag(name: str, default: bool) -> bool:
+    val = os.getenv(name)
+    if val is None:
+        return default
+    return val.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def get_browser_options(headless: bool = True):
     co = ChromiumOptions()
-    co.set_argument("--no-sandbox")
-    co.set_argument("--disable-gpu")
-    co.set_argument("--disable-dev-shm-usage")
-    co.set_argument("--disable-blink-features=AutomationControlled")
-    co.set_argument("--window-size=1920,1080")
+    # 浏览器路径：支持环境变量配置，默认尝试常见路径
+    # Google Chrome: /usr/bin/google-chrome-stable
+    # Linux Snap: /snap/bin/chromium
+    # Linux apt: /usr/bin/chromium-browser
+    browser_path = os.getenv("CHROME_PATH", "/usr/bin/google-chrome-stable")
+    co.set_browser_path(browser_path)
+    
+    # 无头模式（Linux服务器必需）
     co.headless(headless)
+    
+    # Linux无桌面环境必需的参数
+    co.set_argument("--no-sandbox")  # 禁用沙箱（root用户或Docker必需）
+    co.set_argument("--disable-setuid-sandbox")  # 配合no-sandbox使用
+    co.set_argument("--disable-gpu")  # 无GPU环境禁用硬件加速
+    co.set_argument("--disable-dev-shm-usage")  # 避免/dev/shm空间不足
+    co.set_argument("--disable-software-rasterizer")  # 禁用软件光栅化
+    co.set_argument("--disable-extensions")  # 禁用扩展，减少内存占用
+    co.set_argument("--disable-background-networking")  # 禁用后台网络
+    co.set_argument("--disable-background-timer-throttling")  # 禁用后台定时器节流
+    co.set_argument("--disable-backgrounding-occluded-windows")  
+    co.set_argument("--disable-renderer-backgrounding")
+    co.set_argument("--disable-features=TranslateUI,site-per-process")  # 禁用翻译和站点隔离
+    co.set_argument("--disable-blink-features=AutomationControlled")  # 隐藏自动化特征
+    
+    # 窗口和显示设置
+    co.set_argument("--window-size=1920,1080")
+    co.set_argument("--start-maximized")
+    
+    # 用户数据目录 - 使用临时目录避免冲突
+    co.set_user_data_path(tempfile.mkdtemp())
+    
+    # 设置随机调试端口，避免冲突
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock.bind(("127.0.0.1", 0))
+    port = sock.getsockname()[1]
+    sock.close()
+    co.set_local_port(port)
+    
+    # User-Agent（模拟Windows Chrome，减少被检测概率）
     co.set_user_agent(
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
         "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
@@ -114,9 +158,10 @@ def auto_login_yidun(page: ChromiumPage, max_retries: int = 3) -> bool:
                 page.actions.hold(slider_btn)
                 for step in tracks:
                     y_jitter = random.choice([-1, 0, 1]) if random.random() > 0.8 else 0
-                    page.actions.move(offset_x=step, offset_y=y_jitter)
+                    # duration 参数控制滑动速度，0.01秒 = 10ms，快速滑动
+                    page.actions.move(offset_x=step, offset_y=y_jitter, duration=0.01)
 
-                time.sleep(random.uniform(0.2, 0.5))
+                time.sleep(random.uniform(0.05, 0.1))
                 page.actions.release()
 
                 time.sleep(2)
@@ -144,13 +189,14 @@ def auto_login_yidun(page: ChromiumPage, max_retries: int = 3) -> bool:
 
 def automation_task(session_id: str, req: VerifyInitReq, active_sessions: Dict[str, dict]):
     session = active_sessions[session_id]
-    co = ChromiumOptions()
+    co = get_browser_options(headless=_env_flag("VERIFY_HEADLESS", True))
     page = ChromiumPage(addr_or_opts=co)
 
     try:
         if not auto_login_yidun(page):
             session["status"] = "FAILED"
             session["error"] = "自动登录失败"
+            return
 
         page.listen.start("externalAPI/getSoftPublicity")
 
@@ -177,20 +223,42 @@ def automation_task(session_id: str, req: VerifyInitReq, active_sessions: Dict[s
         time.sleep(2)
         inst_text = modal.ele(".:yidun-fallback__tip").text
         img_base64 = modal.get_screenshot(as_base64="webp")
-        modal.ele(".yidun_bg-img").save(path=".", name="ocr.jpg", timeout=2, rename=False)
+        bg_img_ele = modal.ele(".yidun_bg-img")
+        if not bg_img_ele:
+            session["status"] = "FAILED"
+            session["error"] = "验证码背景图元素不存在"
+            return
+
+        bg_url = bg_img_ele.attr("src")
+        if not bg_url:
+            session["status"] = "FAILED"
+            session["error"] = "验证码背景图地址为空"
+            return
+
+        if bg_url.startswith("data:image"):
+            try:
+                bg_bytes = base64.b64decode(bg_url.split(",", 1)[1])
+            except Exception:
+                session["status"] = "FAILED"
+                session["error"] = "验证码背景图 base64 解码失败"
+                return
+        else:
+            bg_bytes = download_image(bg_url, referer=page.url)
+        bg_img_cv = cv2.imdecode(np.frombuffer(bg_bytes, np.uint8), cv2.IMREAD_COLOR)
+        if bg_img_cv is None:
+            session["status"] = "FAILED"
+            session["error"] = "验证码背景图解码失败"
+            return
 
         sim_result = get_target_coords(
-            model_path="./captcha_multi_task.pth",
-            img_path="./ocr.jpg",
+            model_path=CAPTCHA_MODEL_PATH,
+            img_path=bg_img_cv,
             instruction_text=inst_text,
         )
-
-        session["captcha_data"] = {
-            "bg_image": f"data:image/webp;base64,{img_base64}",
-            "width": modal.rect.size[0],
-            "height": modal.rect.size[1],
-        }
-        session["status"] = "CAPTCHA_REQUIRED"
+        if not sim_result:
+            session["status"] = "FAILED"
+            session["error"] = "验证码目标识别失败"
+            return
 
         offset_x = sim_result[0]
         offset_y = sim_result[1]

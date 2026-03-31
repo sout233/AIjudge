@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Trash2, Loader2, ChevronDown, ChevronUp, FolderTree, Edit2, Check, X, Upload, ImageIcon, Calendar, Globe, GlobeOff } from 'lucide-react';
+import { Plus, Trash2, Loader2, ChevronDown, ChevronUp, FolderTree, Edit2, Check, X, Upload, ImageIcon, Calendar, Globe, EyeOff } from 'lucide-react';
 import { adminApi } from '@/api/admin';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -227,18 +227,22 @@ function formatDateTime(isoString?: string): string {
   }
 }
 
-// 获取状态显示文本和颜色
-function getStatusDisplay(status?: string): { text: string; color: string } {
-  switch (status) {
-    case 'active':
+// 获取竞赛状态显示（根据时间自动计算）
+function getStatusDisplay(start_time?: string, end_time?: string): { text: string; color: string } {
+  const now = new Date();
+  const start = start_time ? new Date(start_time) : null;
+  const end = end_time ? new Date(end_time) : null;
+  
+  if (start && end) {
+    if (now < start) {
+      return { text: '即将开始', color: 'text-blue-600 bg-blue-100' };
+    } else if (now >= start && now <= end) {
       return { text: '进行中', color: 'text-green-600 bg-green-100' };
-    case 'upcoming':
-      return { text: '未开始', color: 'text-blue-600 bg-blue-100' };
-    case 'ended':
+    } else {
       return { text: '已结束', color: 'text-gray-600 bg-gray-100' };
-    default:
-      return { text: '未知', color: 'text-gray-600 bg-gray-100' };
+    }
   }
+  return { text: '时间未设置', color: 'text-gray-500 bg-gray-100' };
 }
 
 // 竞赛卡片组件
@@ -314,7 +318,7 @@ function ContestCard({
   };
 
   const tracks = contest.tracks || [];
-  const statusDisplay = getStatusDisplay(contest.status);
+  const statusDisplay = getStatusDisplay(contest.start_time, contest.end_time);
 
   return (
     <div className="border rounded-lg overflow-hidden">
@@ -417,7 +421,7 @@ function ContestCard({
                     </>
                   ) : (
                     <>
-                      <GlobeOff className="w-3 h-3 text-gray-400" />
+                      <EyeOff className="w-3 h-3 text-gray-400" />
                       <span className="text-gray-500">未上线</span>
                     </>
                   )}

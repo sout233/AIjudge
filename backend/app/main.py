@@ -11,7 +11,7 @@ from app.api.v1.downloads import router as download_router
 from app.api.v1.judge import router as judge_router
 from app.api.v1.rules import router as rule_router
 from app.api.v1.verify import router as verify_router
-from app.core.config import (
+from app.config.config import (
     UPLOAD_DIR,
     RESULT_DIR,
     RULE_DIR,
