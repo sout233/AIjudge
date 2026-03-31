@@ -8,14 +8,14 @@ import numpy as np
 from DrissionPage import ChromiumPage, ChromiumOptions
 from loguru import logger
 
-from app.captcha.system import get_target_coords
-from app.models.schemas import VerifyInitReq
-from app.utils.image import (
+from app.captcha import (
+    get_target_coords,
     download_image,
     identify_gap_tcaptcha,
     calculate_display_ratio,
     generate_tcaptcha_track,
 )
+from app.models.schemas import VerifyInitReq
 
 SYSTEM_USERNAME = "13913517504"
 SYSTEM_PASSWORD = "200506040@Wzj"

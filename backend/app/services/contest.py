@@ -2,7 +2,7 @@ import base64
 import json
 import os
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 from fastapi import HTTPException, UploadFile
 
@@ -15,10 +15,18 @@ ALLOWED_LOGO_TYPES = {"image/jpeg", "image/png", "image/gif", "image/webp"}
 MAX_LOGO_SIZE = 2 * 1024 * 1024  # 2MB
 
 
+def _parse_contest_datetime(value: str) -> datetime:
+    """Parse contest datetimes and normalize legacy naive values to UTC."""
+    parsed = datetime.fromisoformat(value.replace('Z', '+00:00'))
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
 def list_contests():
     """获取竞赛列表，自动根据时间更新状态"""
     contests = load_contests()
-    now = datetime.now()
+    now = datetime.now(timezone.utc)
     
     for contest in contests:
         # 根据时间自动计算状态
@@ -27,8 +35,8 @@ def list_contests():
         
         if start_time and end_time:
             try:
-                start = datetime.fromisoformat(start_time.replace('Z', '+00:00'))
-                end = datetime.fromisoformat(end_time.replace('Z', '+00:00'))
+                start = _parse_contest_datetime(start_time)
+                end = _parse_contest_datetime(end_time)
                 
                 if now < start:
                     contest['status'] = 'upcoming'
@@ -177,6 +185,11 @@ def add_track(contest_id: str, track: Track):
     if any(t.get("id") == track.id for t in existing_tracks):
         raise HTTPException(status_code=400, detail="赛道ID已存在")
 
+    # 检查规则文件是否存在，如果存在则设置 rule_id
+    rule_path = os.path.join(RULE_DIR, f"{track.id}.json")
+    if os.path.exists(rule_path):
+        track.rule_id = track.id
+
     # 添加赛道
     if "tracks" not in contest:
         contest["tracks"] = []
@@ -184,8 +197,7 @@ def add_track(contest_id: str, track: Track):
 
     save_contests(contests)
 
-    # 创建该赛道的规则文件
-    rule_path = os.path.join(RULE_DIR, f"{track.id}.json")
+    # 创建该赛道的规则文件（如果不存在）
     if not os.path.exists(rule_path):
         with open(rule_path, "w", encoding="utf-8") as f:
             json.dump({}, f, ensure_ascii=False, indent=2)
@@ -215,6 +227,11 @@ def update_track(contest_id: str, track_id: str, track: Track):
     track.id = track_id
     if not track.rule_id:
         track.rule_id = old_track.get("rule_id")
+    
+    # 检查规则文件是否存在，如果存在且rule_id为空，则设置 rule_id
+    rule_path = os.path.join(RULE_DIR, f"{track_id}.json")
+    if os.path.exists(rule_path) and not track.rule_id:
+        track.rule_id = track_id
 
     tracks[track_index] = track.model_dump()
     save_contests(contests)
@@ -294,20 +311,20 @@ def update_contest_time(contest_id: str, start_time: Optional[str], end_time: Op
     # 验证时间格式
     if start_time:
         try:
-            datetime.fromisoformat(start_time.replace('Z', '+00:00'))
+            _parse_contest_datetime(start_time)
         except ValueError:
             raise HTTPException(status_code=400, detail="开始时间格式错误，请使用 ISO 8601 格式")
     
     if end_time:
         try:
-            datetime.fromisoformat(end_time.replace('Z', '+00:00'))
+            _parse_contest_datetime(end_time)
         except ValueError:
             raise HTTPException(status_code=400, detail="结束时间格式错误，请使用 ISO 8601 格式")
 
     # 验证时间逻辑
     if start_time and end_time:
-        start = datetime.fromisoformat(start_time.replace('Z', '+00:00'))
-        end = datetime.fromisoformat(end_time.replace('Z', '+00:00'))
+        start = _parse_contest_datetime(start_time)
+        end = _parse_contest_datetime(end_time)
         if start >= end:
             raise HTTPException(status_code=400, detail="结束时间必须晚于开始时间")
 
@@ -317,10 +334,10 @@ def update_contest_time(contest_id: str, start_time: Optional[str], end_time: Op
         contest["end_time"] = end_time
 
     # 根据新时间更新状态
-    now = datetime.now()
+    now = datetime.now(timezone.utc)
     if start_time and end_time:
-        start = datetime.fromisoformat(start_time.replace('Z', '+00:00'))
-        end = datetime.fromisoformat(end_time.replace('Z', '+00:00'))
+        start = _parse_contest_datetime(start_time)
+        end = _parse_contest_datetime(end_time)
         
         if now < start:
             contest['status'] = 'upcoming'

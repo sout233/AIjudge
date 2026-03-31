@@ -4,7 +4,6 @@ import { useQuery } from '@tanstack/react-query';
 import {
   Trophy,
   Calendar,
-  Users,
   ChevronRight,
   LogIn,
   FileText,
@@ -29,6 +28,28 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { RichContent, MarkdownPreview } from '@/components/ui/rich-editor';
 import { isMarkdownContent } from '@/lib/markdown';
 import type { Contest } from '@/types';
+
+function formatContestDateRange(contest: Contest) {
+  const formatDate = (value?: string) => {
+    if (!value) return null;
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return null;
+    return date.toLocaleDateString('zh-CN', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    });
+  };
+
+  const start = formatDate(contest.start_time);
+  const end = formatDate(contest.end_time);
+
+  if (start && end) return `${start} - ${end}`;
+  if (start) return `${start} 起`;
+  if (end) return `截止 ${end}`;
+  if (contest.endDate) return contest.endDate;
+  return '待定';
+}
 
 export function ContestsPage() {
   const navigate = useNavigate();
@@ -211,19 +232,12 @@ export function ContestsPage() {
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-2 gap-4">
                   <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-lg">
                     <Calendar className="w-5 h-5 text-cyan-600" />
                     <div>
-                      <p className="text-xs text-slate-500">截止日期</p>
-                      <p className="font-medium">{selectedContest.endDate || '待定'}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-lg">
-                    <Users className="w-5 h-5 text-purple-600" />
-                    <div>
-                      <p className="text-xs text-slate-500">参与人数</p>
-                      <p className="font-medium">{selectedContest.participants || 0}</p>
+                      <p className="text-xs text-slate-500">竞赛时间</p>
+                      <p className="font-medium">{formatContestDateRange(selectedContest)}</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-lg">
@@ -424,10 +438,10 @@ function ContestGrid({ contests, isLoading, onSelect, selectedId }: ContestGridP
             <p className="text-sm text-slate-500 line-clamp-2 mb-4">
               {contest.description || '暂无描述'}
             </p>
-            <div className="flex items-center justify-between text-xs text-slate-400">
+            <div className="space-y-2 text-xs text-slate-400">
               <span className="flex items-center gap-1">
-                <Users className="w-3 h-3" />
-                {contest.participants || 0} 参与
+                <Calendar className="w-3 h-3" />
+                {formatContestDateRange(contest)}
               </span>
               <span className="flex items-center gap-1">
                 <FileText className="w-3 h-3" />
