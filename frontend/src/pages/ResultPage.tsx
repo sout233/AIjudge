@@ -222,7 +222,7 @@ export function ResultPage() {
                       <CardHeader className="pb-3">
                         <div className="flex justify-between items-center mb-2 text-white">
                           <span className="text-xl font-black text-primary uppercase tracking-[0.2em] text-white">测评 {ev.judge_tag}</span>
-                          <span className="text-2xl font-black text-white group-hover:text-primary transition-colors">{ev.total_score}</span>
+                          <span className="text-2xl font-black text-white group-hover:text-blue-200 transition-colors">{ev.total_score}</span>
                         </div>
                         <CardTitle className="text-sm font-bold text-slate-300">{ev.judge_style}</CardTitle>
                       </CardHeader>
@@ -240,7 +240,7 @@ export function ResultPage() {
               <Card className="bg-slate-900/40 backdrop-blur-xl border-white/10 shadow-2xl">
                   <CardHeader>
                       <CardTitle className="text-lg flex items-center gap-3 text-white uppercase tracking-tighter">
-                          <Users className="w-5 h-5 text-primary" />
+                          <Users className="w-5 h-5 text-primary stroke-white" />
                           多维专家共识报告摘要
                       </CardTitle>
                   </CardHeader>
@@ -248,14 +248,14 @@ export function ResultPage() {
                       {result.evaluations.map((ev: SingleEvaluation) => (
                           <div key={ev.judge_tag} className="space-y-4 p-4 rounded-2xl bg-white/5 border border-white/5 hover:bg-white/10 transition-colors">
                               <div className="flex items-center gap-3 border-b border-white/5 pb-3">
-                                  <div className="w-8 h-8 rounded-lg bg-slate-800 flex items-center justify-center text-xs font-black text-primary">
+                                  <div className="w-8 h-8 rounded-lg bg-slate-800 flex items-center justify-center  text-white font-bold text-primary">
                                       {ev.judge_tag}
                                   </div>
                                   <div>
-                                    <span className="text-[12px] font-black text-white uppercase tracking-widest block">{ev.judge_style}</span>
+                                    <span className="text-white font-bold uppercase tracking-widest block">{ev.judge_style}</span>
                                   </div>
                               </div>
-                              <p className="text-[12px] text-slate-400 leading-relaxed text-justify">
+                              <p className="text-slate-400 leading-relaxed text-justify">
                                   {ev.overall_comment}
                               </p>
                           </div>
