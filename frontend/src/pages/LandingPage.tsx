@@ -11,10 +11,12 @@ import {
   Bell,
   MapPin,
   Shield,
-  History
+  History,
+  LogOut
 }
 from 'lucide-react';
 import { adminApi } from '@/api/admin';
+import { authApi } from '@/api/auth';
 import { useAuthStore } from '@/stores/authStore';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -102,6 +104,15 @@ export function LandingPage() {
                     管理后台
                   </Button>
                 )}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => authApi.logout()}
+                  className="text-slate-600 hover:text-red-600"
+                >
+                  <LogOut className="w-4 h-4 mr-2" />
+                  退出
+                </Button>
               </div>
             ) : (
               <Button

@@ -21,10 +21,12 @@ import {
   History,
   Zap,
   Loader2,
-  ExternalLink
+  ExternalLink,
+  LogOut
 } from 'lucide-react';
 import { adminApi } from '@/api/admin';
 import { judgeApi } from '@/api/judge';
+import { authApi } from '@/api/auth';
 import { useHistoryStore } from '@/stores/historyStore';
 import { useBatchStore, type BatchFile } from '@/stores/batchStore';
 import { Button } from '@/components/ui/button';
@@ -210,9 +212,14 @@ export function StartPage() {
             </div>
             <span className="text-xl font-bold tracking-tight text-white">灵审云评 <span className="text-cyan-400">/</span> 工作站</span>
           </div>
-          <Button variant="ghost" size="sm" onClick={() => navigate('/history')} className="text-slate-400 hover:text-cyan-400">
-            <History className="w-4 h-4 mr-2" /> 历史记录
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" size="sm" onClick={() => navigate('/history')} className="text-slate-400 hover:text-cyan-400">
+              <History className="w-4 h-4 mr-2" /> 历史记录
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => authApi.logout()} className="text-slate-400 hover:text-red-400">
+              <LogOut className="w-4 h-4 mr-2" /> 退出
+            </Button>
+          </div>
         </div>
       </header>
 

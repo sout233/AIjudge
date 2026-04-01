@@ -7,13 +7,15 @@ import {
   BarChart3,
   Lock,
   ChevronRight,
-  LogIn
+  LogIn,
+  LogOut
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { useAuthStore } from '@/stores/authStore';
 import { useRequireAuth } from '@/hooks/useRequireAuth';
 import { ShieldCheck } from 'lucide-react';
+import { authApi } from '@/api/auth';
 
 
 const features = [
@@ -144,6 +146,16 @@ export function HomePage() {
                     className="border-cyan-600 bg-cyan-500 text-cyan-50 hover:bg-cyan-950 hover:text-white/70"
                   >
                     开始评审
+                  </Button>
+
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => authApi.logout()}
+                    className="text-slate-400 hover:text-red-400 gap-2"
+                  >
+                    <LogOut className="w-4 h-4" />
+                    退出
                   </Button>
                 </>
               ) : (

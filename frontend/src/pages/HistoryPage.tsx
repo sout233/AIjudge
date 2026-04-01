@@ -12,10 +12,13 @@ import {
   AlertCircle,
   CheckCircle2,
   XCircle,
-  Timer
+  Timer,
+  LogOut,
+  ArrowLeft
 } from 'lucide-react';
 import { judgeApi } from '@/api/judge';
 import { adminApi } from '@/api/admin';
+import { authApi } from '@/api/auth';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -92,6 +95,12 @@ export function HistoryPage() {
           </div>
           
           <div className="flex items-center gap-3">
+            <Button variant="ghost" size="sm" onClick={() => navigate('/')} className="text-slate-400 hover:text-white transition-colors">
+              <ArrowLeft className="w-4 h-4 mr-2" /> 返回首页
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => authApi.logout()} className="text-slate-400 hover:text-red-400 transition-colors">
+              <LogOut className="w-4 h-4 mr-2" /> 退出
+            </Button>
             <div className="relative w-full md:w-64">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
               <Input 
