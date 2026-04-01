@@ -235,12 +235,12 @@ export function LandingPage() {
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-lg">
                     <Calendar className="w-5 h-5 text-cyan-600" />
                     <div>
                       <p className="text-xs text-slate-500">截止日期</p>
-                      <p className="font-medium">{selectedContest.endDate || '待定'}</p>
+                      <p className="font-medium">{selectedContest.end_time || selectedContest.endDate || '待定'}</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-lg">

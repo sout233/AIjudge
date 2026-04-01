@@ -1,11 +1,20 @@
 import { useState, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Trash2, Loader2, ImagePlus, X, Settings2, FolderTree } from 'lucide-react';
+import { Plus, Trash2, Loader2, ImagePlus, X, Settings2, FolderTree, Pencil, Calendar, Info } from 'lucide-react';
 import { adminApi } from '@/api/admin';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Table,
   TableBody,
@@ -20,6 +29,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
+  DialogFooter,
 } from '@/components/ui/dialog';
 import { ContestLogo } from '@/components/ContestLogo';
 import type { Contest, Track } from '@/types';
@@ -27,11 +37,16 @@ import type { Contest, Track } from '@/types';
 export function ContestManagement() {
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const editFileInputRef = useRef<HTMLInputElement>(null);
   const [newContest, setNewContest] = useState({ id: '', name: '', logo_url: '' });
 
   // 赛道管理相关状态
   const [editingTracksContest, setEditingTracksContest] = useState<Contest | null>(null);
   const [newTrack, setNewTrack] = useState({ id: '', name: '' });
+
+  // 竞赛编辑相关状态
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [editingContest, setEditingContest] = useState<Contest | null>(null);
 
   const { data: contests = [], isLoading } = useQuery({
     queryKey: ['contests'],
@@ -107,6 +122,23 @@ export function ContestManagement() {
     updateMutation.mutate(updatedContest);
   };
 
+  // 处理竞赛编辑保存
+  const handleEditSave = () => {
+    if (!editingContest) return;
+    updateMutation.mutate(editingContest, {
+      onSuccess: () => setIsEditDialogOpen(false)
+    });
+  };
+
+  const handleEditImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file && editingContest) {
+      const reader = new FileReader();
+      reader.onloadend = () => setEditingContest(prev => prev ? ({ ...prev, logo_url: reader.result as string }) : null);
+      reader.readAsDataURL(file);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <h2 className="text-2xl font-bold">竞赛与赛道管理</h2>
@@ -134,25 +166,147 @@ export function ContestManagement() {
       <Card>
         <Table>
           <TableHeader className="bg-slate-50">
-            <TableRow><TableHead className="w-[80px]">图标</TableHead><TableHead>竞赛名称</TableHead><TableHead>赛道数量</TableHead><TableHead className="text-right">管理</TableHead></TableRow>
+            <TableRow>
+              <TableHead className="w-[80px]">图标</TableHead>
+              <TableHead>竞赛名称</TableHead>
+              <TableHead>状态</TableHead>
+              <TableHead>赛道数量</TableHead>
+              <TableHead className="text-right">管理</TableHead>
+            </TableRow>
           </TableHeader>
           <TableBody>
             {contests.map((c: Contest) => (
               <TableRow key={c.id}>
                 <TableCell><ContestLogo url={c.logo_url} name={c.name} id={c.id} size="sm" /></TableCell>
                 <TableCell><div className="font-bold">{c.name}</div><div className="text-[10px] text-slate-400 font-mono">{c.id}</div></TableCell>
+                <TableCell>
+                  <Badge variant={c.status === 'active' || c.status === '进行中' ? 'default' : 'secondary'}>
+                    {c.status || '进行中'}
+                  </Badge>
+                </TableCell>
                 <TableCell><Badge variant="outline" className="font-mono">{c.tracks?.length || 0}</Badge></TableCell>
                 <TableCell className="text-right space-x-2">
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => {
+                      setEditingContest(c);
+                      setIsEditDialogOpen(true);
+                    }}
+                    className="text-slate-600 border-slate-200 hover:bg-slate-50"
+                  >
+                    <Pencil className="w-4 h-4 mr-1" /> 编辑
+                  </Button>
                   <Button variant="outline" size="sm" onClick={() => setEditingTracksContest(c)} className="text-primary border-primary/20 hover:bg-primary/10">
                     <FolderTree className="w-4 h-4 mr-1" /> 赛道
                   </Button>
-                  <Button variant="ghost" size="sm" onClick={() => { if(confirm('删除吗?')) deleteMutation.mutate(c.id); }} className="text-red-500 hover:bg-red-50"><Trash2 className="w-4 h-4" /></Button>
+                  <Button variant="ghost" size="sm" onClick={() => { if(confirm('确定要删除该竞赛吗？这将删除所有相关的规则和公告。')) deleteMutation.mutate(c.id); }} className="text-red-500 hover:bg-red-50"><Trash2 className="w-4 h-4" /></Button>
                 </TableCell>
               </TableRow>
             ))}
           </TableBody>
         </Table>
       </Card>
+
+      {/* Edit Contest Dialog */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent className="max-w-2xl overflow-y-auto max-h-[90vh]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Pencil className="w-5 h-5 text-primary" />
+              修改竞赛信息
+            </DialogTitle>
+            <DialogDescription>更新竞赛的图标、名称、时间及状态等核心信息。</DialogDescription>
+          </DialogHeader>
+
+          {editingContest && (
+            <div className="grid gap-6 py-4">
+              <div className="flex items-center gap-6">
+                <div 
+                  onClick={() => editFileInputRef.current?.click()} 
+                  className="w-24 h-24 rounded-2xl border-2 border-dashed border-slate-200 hover:border-primary flex flex-col items-center justify-center cursor-pointer overflow-hidden bg-slate-50 transition-all"
+                >
+                  {editingContest.logo_url ? (
+                    <img src={editingContest.logo_url} className="w-full h-full object-cover" />
+                  ) : (
+                    <ImagePlus className="w-8 h-8 text-slate-400" />
+                  )}
+                </div>
+                <input type="file" ref={editFileInputRef} onChange={handleEditImageChange} className="hidden" accept="image/*" />
+                <div className="flex-1 space-y-2">
+                  <Label>竞赛名称</Label>
+                  <Input 
+                    value={editingContest.name} 
+                    onChange={e => setEditingContest({...editingContest, name: e.target.value})} 
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2"><Info className="w-3 h-3" /> 竞赛状态</Label>
+                  <Select 
+                    value={editingContest.status || '进行中'} 
+                    onValueChange={v => setEditingContest({...editingContest, status: v})}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="选择状态" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="active">进行中 (Active)</SelectItem>
+                      <SelectItem value="upcoming">即将开始 (Upcoming)</SelectItem>
+                      <SelectItem value="finished">已结束 (Finished)</SelectItem>
+                      <SelectItem value="archived">已存档 (Archived)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>竞赛分类</Label>
+                  <Input 
+                    value={editingContest.category || ''} 
+                    onChange={e => setEditingContest({...editingContest, category: e.target.value})}
+                    placeholder="如：学术竞赛、科技创新"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2"><Calendar className="w-3 h-3" /> 开始时间</Label>
+                  <Input 
+                    type="date" 
+                    value={editingContest.start_time || ''} 
+                    onChange={e => setEditingContest({...editingContest, start_time: e.target.value})} 
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2"><Calendar className="w-3 h-3" /> 结束时间</Label>
+                  <Input 
+                    type="date" 
+                    value={editingContest.end_time || ''} 
+                    onChange={e => setEditingContest({...editingContest, end_time: e.target.value})} 
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>竞赛描述</Label>
+                <Textarea 
+                  value={editingContest.description || ''} 
+                  onChange={e => setEditingContest({...editingContest, description: e.target.value})}
+                  placeholder="简要介绍竞赛背景、目标与参与要求..."
+                  className="min-h-[100px]"
+                />
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>取消</Button>
+            <Button onClick={handleEditSave} disabled={updateMutation.isPending}>保存修改</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={!!editingTracksContest} onOpenChange={(open) => !open && setEditingTracksContest(null)}>
         <DialogContent className="max-w-2xl">

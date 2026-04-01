@@ -1,13 +1,24 @@
 // Contest types
+export interface Track {
+  id: string;
+  name: string;
+  description?: string;
+}
+
 export interface Contest {
   id: string;
   name: string;
   description?: string;
+  logo_url?: string;
+  start_time?: string;
+  end_time?: string;
   status?: string;
-  endDate: string;
-  participants: string;
-  submissions: string;
   category: string;
+  tracks: Track[];
+  // Previous/Legacy fields
+  endDate?: string;
+  participants?: string;
+  submissions?: string;
 }
 
 // Announcement types
