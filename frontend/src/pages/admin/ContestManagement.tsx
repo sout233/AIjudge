@@ -74,9 +74,9 @@ export function ContestManagement() {
   };
 
   const handleCreate = () => {
-    if (!newContest.id || !newContest.name) return;
+    if (!newContest.name) return;
     createMutation.mutate({
-      id: newContest.id,
+      id: newContest.id || '', // 传空字符串，由后端生成
       name: newContest.name,
       description: '',
       logo_url: newContest.logo_url,
@@ -87,10 +87,11 @@ export function ContestManagement() {
 
   // 添加赛道
   const handleAddTrack = () => {
-    if (!editingTracksContest || !newTrack.id || !newTrack.name) return;
+    if (!editingTracksContest || !newTrack.name) return;
+    const trackId = newTrack.id || Math.random().toString(36).substring(2, 10);
     const updatedContest = {
       ...editingTracksContest,
-      tracks: [...(editingTracksContest.tracks || []), { id: newTrack.id, name: newTrack.name }]
+      tracks: [...(editingTracksContest.tracks || []), { id: trackId, name: newTrack.name }]
     };
     updateMutation.mutate(updatedContest);
     setNewTrack({ id: '', name: '' });
@@ -121,10 +122,9 @@ export function ContestManagement() {
             <input type="file" ref={fileInputRef} onChange={handleImageChange} className="hidden" accept="image/*" />
             <div className="flex-1 space-y-4">
               <div className="flex flex-col md:flex-row gap-4">
-                <Input value={newContest.id} onChange={(e) => setNewContest({ ...newContest, id: e.target.value })} placeholder="竞赛 ID (不可修改)" className="md:w-1/2" />
-                <Input value={newContest.name} onChange={(e) => setNewContest({ ...newContest, name: e.target.value })} placeholder="竞赛显示名称" className="md:w-1/2" />
+                <Input value={newContest.name} onChange={(e) => setNewContest({ ...newContest, name: e.target.value })} placeholder="竞赛显示名称" className="w-full" />
               </div>
-              <div className="flex justify-end"><Button onClick={handleCreate} disabled={createMutation.isPending || !newContest.id}>确认创建</Button></div>
+              <div className="flex justify-end"><Button onClick={handleCreate} disabled={createMutation.isPending || !newContest.name}>确认创建</Button></div>
             </div>
           </div>
         </CardContent>
@@ -166,9 +166,8 @@ export function ContestManagement() {
 
           <div className="space-y-6 py-4">
             <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 flex flex-col md:flex-row gap-3">
-              <Input value={newTrack.id} onChange={e => setNewTrack({...newTrack, id: e.target.value})} placeholder="赛道 ID (对应 JSON 文件名)" className="flex-1" />
               <Input value={newTrack.name} onChange={e => setNewTrack({...newTrack, name: e.target.value})} placeholder="赛道名称 (前端显示)" className="flex-1" />
-              <Button onClick={handleAddTrack} disabled={updateMutation.isPending || !newTrack.id} className="bg-primary shadow-lg">添加赛道</Button>
+              <Button onClick={handleAddTrack} disabled={updateMutation.isPending || !newTrack.name} className="bg-primary shadow-lg">添加赛道</Button>
             </div>
 
             {/* Tracks List */}
