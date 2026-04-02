@@ -1,3 +1,4 @@
 backend/storage/results/*
 backend/storage/uploads/*
 backend/ocr.jpg
+backend/uv.lock

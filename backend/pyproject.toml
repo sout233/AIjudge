@@ -10,7 +10,7 @@ dependencies = [
     "fastapi>=0.128.0",
     "httpx>=0.28.1",
     "jinja2>=3.1.6",
-    # "jose>=1.0.0",
+    "python-jose>=3.5.0",
     "loguru>=0.7.3",
     "opencv-python>=4.13.0.92",
     "pypdf>=6.6.0",
@@ -21,3 +21,8 @@ dependencies = [
     "uvicorn>=0.40.0",
     "weasyprint>=67.0",
 ]
+
+[[tool.uv.index]]
+name = "tsinghua"
+url = "https://pypi.tuna.tsinghua.edu.cn/simple"
+default = true  # 设为主源
