@@ -1,97 +1,215 @@
+import asyncio
 import base64
+import json
+import os
 import random
+import shutil
+import socket
+import tempfile
+import threading
 import time
 import uuid
-import threading
-import os
-import json  # 新增 json 用于处理 cookie 文件
-from typing import Dict, List
+from pathlib import Path
+from typing import Dict, Optional, Tuple
 
 import cv2
 import numpy as np
-from DrissionPage import ChromiumPage, ChromiumOptions
-from fastapi import HTTPException, APIRouter
+from DrissionPage import ChromiumOptions, ChromiumPage
+from fastapi import APIRouter, HTTPException
 from loguru import logger
 from pydantic import BaseModel
-import asyncio
 
-from services.utils import download_image, identify_gap_tcaptcha, calculate_display_ratio, generate_tcaptcha_track
 from services.auto_solver import get_target_coords
+from services.utils import (
+    calculate_display_ratio,
+    download_image,
+    generate_tcaptcha_track,
+    identify_gap_tcaptcha,
+)
 
 active_sessions: Dict[str, dict] = {}
 
-# === 配置 ===
 SYSTEM_USERNAME = "13913517504"
 SYSTEM_PASSWORD = "200506040@Wzj"
 YIDUN_LOGIN_URL = "https://register.ccopyright.com.cn/login.html"
-MAX_GLOBAL_RETRIES = 3  # 最大重试次数
-COOKIE_FILE = "yidun_cookies.json"
+BASE_DIR = Path(__file__).resolve().parent.parent
+CAPTCHA_MODEL_PATH = BASE_DIR / "captcha_multi_task.pth"
+COOKIE_FILE = BASE_DIR / "yidun_cookies.json"
+RUNTIME_DIR = BASE_DIR / ".runtime" / "verify_certificate"
+MAX_GLOBAL_RETRIES = 3
+INIT_QUERY_TIMEOUT_SECONDS = int(os.getenv("VERIFY_INIT_QUERY_TIMEOUT_SECONDS", "600"))
+LISTEN_PACKET_TIMEOUT_SECONDS = int(os.getenv("VERIFY_LISTEN_PACKET_TIMEOUT_SECONDS", "10"))
+CAPTCHA_MODAL_TIMEOUT_SECONDS = int(os.getenv("VERIFY_CAPTCHA_MODAL_TIMEOUT_SECONDS", "15"))
+RESULT_WAIT_TIMEOUT_SECONDS = int(os.getenv("VERIFY_RESULT_WAIT_TIMEOUT_SECONDS", "30"))
+BROWSER_ENV_KEYS = (
+    "VERIFY_BROWSER_PATH",
+    "BROWSER_PATH",
+    "CHROME_PATH",
+    "EDGE_PATH",
+)
+BROWSER_CANDIDATES = (
+    "/usr/bin/google-chrome-stable",
+    "/usr/bin/google-chrome",
+    "/usr/bin/chromium-browser",
+    "/usr/bin/chromium",
+    "/snap/bin/chromium",
+    r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+    r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
+    r"C:\Program Files\Microsoft\Edge\Application\msedge.exe",
+    r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
+    os.path.join(os.environ.get("LOCALAPPDATA", ""), "Google", "Chrome", "Application", "chrome.exe"),
+    os.path.join(os.environ.get("LOCALAPPDATA", ""), "Microsoft", "Edge", "Application", "msedge.exe"),
+)
 
 router = APIRouter()
 
-# === 请求模型 ===
+
 class InitReq(BaseModel):
     register_no: str
     keyword: str
 
-class Coordinate(BaseModel):
-    x: float
-    y: float
 
-class SubmitReq(BaseModel):
-    session_id: str
-    points: List[Coordinate] = []
+def _env_flag(name: str, default: bool) -> bool:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
 
-def get_options():
+
+def _resolve_browser_path(candidate: Optional[str]) -> Optional[str]:
+    if not candidate:
+        return None
+
+    expanded = os.path.expandvars(os.path.expanduser(candidate.strip()))
+    if not expanded:
+        return None
+
+    if os.path.isabs(expanded) and os.path.exists(expanded):
+        return expanded
+
+    executable = shutil.which(expanded)
+    if executable:
+        return executable
+
+    if os.path.exists(expanded):
+        return os.path.abspath(expanded)
+
+    return None
+
+
+def _find_browser_path(default_candidate: Optional[str]) -> Optional[str]:
+    candidates = [os.getenv(key) for key in BROWSER_ENV_KEYS]
+    candidates.append(default_candidate)
+    candidates.extend(BROWSER_CANDIDATES)
+
+    for candidate in candidates:
+        resolved = _resolve_browser_path(candidate)
+        if resolved:
+            return resolved
+
+    return None
+
+
+def _find_free_port() -> int:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        sock.bind(("127.0.0.1", 0))
+        return sock.getsockname()[1]
+
+
+def _create_runtime_profile_dir(session_id: str, attempt: int) -> Path:
+    profiles_root = RUNTIME_DIR / "profiles"
+    profiles_root.mkdir(parents=True, exist_ok=True)
+    temp_dir = tempfile.mkdtemp(
+        prefix=f"{session_id[:8]}_attempt_{attempt}_",
+        dir=str(profiles_root),
+    )
+    return Path(temp_dir)
+
+
+def _cleanup_runtime_dir(target: Optional[Path]):
+    if not target:
+        return
+
+    try:
+        resolved_target = target.resolve(strict=False)
+        runtime_root = RUNTIME_DIR.resolve(strict=False)
+    except OSError as exc:
+        logger.warning(f"解析运行时目录失败，跳过清理: {exc}")
+        return
+
+    if resolved_target == runtime_root or runtime_root not in resolved_target.parents:
+        logger.warning(f"检测到非预期清理路径，已跳过: {resolved_target}")
+        return
+
+    shutil.rmtree(resolved_target, ignore_errors=True)
+
+
+def get_browser_options(session_id: str, attempt: int, headless: bool) -> Tuple[ChromiumOptions, Path]:
     co = ChromiumOptions()
+    browser_path = _find_browser_path(co.browser_path)
+    if not browser_path:
+        raise RuntimeError("未找到可用 Chromium 浏览器，请通过 VERIFY_BROWSER_PATH/BROWSER_PATH/CHROME_PATH 显式指定。")
 
-    fallback_path = r'C:\Users\sout\AppData\Local\ms-playwright\chromium-1181\chrome-win\chrome.exe'
+    profile_dir = _create_runtime_profile_dir(session_id, attempt)
+    debug_port = _find_free_port()
 
-    if not co.browser_path or not os.path.exists(co.browser_path):
-        if os.path.exists(fallback_path):
-            logger.info(f"未发现系统默认浏览器，启用备用路径: {fallback_path}")
-            co.set_browser_path(fallback_path)
-        else:
-            logger.error("系统默认浏览器和备用路径均未找到！启动可能失败。")
-
-    co.set_argument('--no-sandbox')
-    co.set_argument('--disable-gpu')
-    co.set_argument('--disable-dev-shm-usage')
-    co.set_argument('--disable-blink-features=AutomationControlled')
-    co.set_argument('--window-size=1920,1080')
-
-    co.headless(False)
+    co.set_browser_path(browser_path)
+    co.headless(headless)
+    co.set_argument("--no-sandbox")
+    co.set_argument("--disable-setuid-sandbox")
+    co.set_argument("--disable-gpu")
+    co.set_argument("--disable-dev-shm-usage")
+    co.set_argument("--disable-software-rasterizer")
+    co.set_argument("--disable-extensions")
+    co.set_argument("--disable-background-networking")
+    co.set_argument("--disable-background-timer-throttling")
+    co.set_argument("--disable-backgrounding-occluded-windows")
+    co.set_argument("--disable-renderer-backgrounding")
+    co.set_argument("--disable-features=TranslateUI,site-per-process")
+    co.set_argument("--disable-blink-features=AutomationControlled")
+    co.set_argument("--window-size=1920,1080")
+    co.set_argument("--start-maximized")
+    co.set_user_data_path(str(profile_dir))
+    co.set_local_port(debug_port)
     co.set_user_agent(
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
-    return co
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    )
+
+    logger.info(
+        f"[{session_id}] 浏览器配置完成: browser={browser_path}, headless={headless}, "
+        f"port={debug_port}, profile={profile_dir}"
+    )
+    return co, profile_dir
+
 
 def load_cookies(page: ChromiumPage) -> bool:
-    """从本地加载 Cookie 并注入浏览器"""
-    if os.path.exists(COOKIE_FILE):
-        try:
-            with open(COOKIE_FILE, 'r', encoding='utf-8') as f:
-                cookies = json.load(f)
-            page.get("https://register.ccopyright.com.cn/")
-            page.set.cookies(cookies)
-            return True
-        except Exception as e:
-            logger.warning(f"加载本地 Cookie 失败: {e}")
-    return False
+    if not COOKIE_FILE.exists():
+        return False
+
+    try:
+        with open(COOKIE_FILE, "r", encoding="utf-8") as file:
+            cookies = json.load(file)
+        page.get("https://register.ccopyright.com.cn/")
+        page.set.cookies(cookies)
+        return True
+    except Exception as exc:
+        logger.warning(f"加载本地 Cookie 失败: {exc}")
+        return False
+
 
 def save_cookies(page: ChromiumPage):
-    """将当前浏览器的 Cookie 保存到本地"""
     try:
         cookies = page.cookies()
-        with open(COOKIE_FILE, 'w', encoding='utf-8') as f:
-            json.dump(cookies, f, ensure_ascii=False, indent=2)
+        with open(COOKIE_FILE, "w", encoding="utf-8") as file:
+            json.dump(cookies, file, ensure_ascii=False, indent=2)
         logger.info("已成功保存最新的登录状态 (Cookies)")
-    except Exception as e:
-        logger.warning(f"保存 Cookie 失败: {e}")
+    except Exception as exc:
+        logger.warning(f"保存 Cookie 失败: {exc}")
 
 
-# === 辅助函数：同步等待 ===
 def click_refresh_and_wait(page: ChromiumPage):
-    refresh_btn = page.ele('css:.yidun_refresh')
+    refresh_btn = page.ele("css:.yidun_refresh")
     if refresh_btn:
         refresh_btn.click()
         logger.info("已点击刷新按钮，等待新图片加载...")
@@ -104,19 +222,21 @@ def auto_login_yidun(page: ChromiumPage, max_retries: int = 3) -> bool:
             logger.info("已注入本地 Cookie，正在验证有效性...")
             page.get("https://register.ccopyright.com.cn/index.html")
             time.sleep(1.5)
-            if "login.html" not in page.url and page.ele('.index_container', timeout=2):
-                logger.info("Cookie 有效！免密登录成功，跳过滑块验证。")
+            if "login.html" not in page.url and page.ele(".index_container", timeout=2):
+                logger.info("Cookie 有效，跳过登录流程。")
                 return True
-            else:
-                logger.info("Cookie 已过期或无效，将执行常规密码登录流程...")
+            logger.info("Cookie 已过期或无效，将执行常规密码登录流程...")
 
         page.get(YIDUN_LOGIN_URL)
-        if not page.wait.ele_displayed('css:.login_pwd', timeout=10):
-            logger.error("登录框未能在10秒内加载")
+        if not page.wait.ele_displayed("css:.login_pwd", timeout=10):
+            logger.error("登录框未能在 10 秒内加载")
             return False
 
-        user_input = page.ele('@placeholder=请输入用户名/手机号/邮箱')
-        pwd_input = page.ele('@placeholder=请输入密码')
+        user_input = page.ele("@placeholder=请输入用户名/手机号/邮箱")
+        pwd_input = page.ele("@placeholder=请输入密码")
+        if not user_input or not pwd_input:
+            logger.error("登录输入框缺失")
+            return False
 
         user_input.clear()
         user_input.input(SYSTEM_USERNAME)
@@ -125,22 +245,22 @@ def auto_login_yidun(page: ChromiumPage, max_retries: int = 3) -> bool:
         pwd_input.clear()
         pwd_input.input(SYSTEM_PASSWORD)
 
-        login_btn = page.ele('.login_btn').ele('tag:button')
+        login_btn = page.ele(".login_btn").ele("tag:button")
         login_btn.click()
         logger.info("已提交登录，等待验证码弹窗...")
 
-        popup_container = page.wait.ele_displayed('css:.yidun_popup', timeout=5)
+        popup_container = page.wait.ele_displayed("css:.yidun_popup", timeout=5)
         if not popup_container:
-            if 'login.html' not in page.url:
+            if "login.html" not in page.url:
                 save_cookies(page)
                 return True
             return False
 
-        for attempt in range(1, max_retries + 1):
+        for _ in range(1, max_retries + 1):
             try:
-                bg_img_ele = page.ele('css:.yidun_bg-img')
-                slider_img_ele = page.ele('css:.yidun_jigsaw')
-                slider_btn = page.ele('css:.yidun_slider')
+                bg_img_ele = page.ele("css:.yidun_bg-img")
+                slider_img_ele = page.ele("css:.yidun_jigsaw")
+                slider_btn = page.ele("css:.yidun_slider")
 
                 if not bg_img_ele or not slider_img_ele or not slider_btn:
                     click_refresh_and_wait(page)
@@ -149,7 +269,7 @@ def auto_login_yidun(page: ChromiumPage, max_retries: int = 3) -> bool:
                 display_width = 0
                 for _ in range(30):
                     try:
-                        if bg_img_ele.attr('src') and bg_img_ele.rect.size[0] > 0:
+                        if bg_img_ele.attr("src") and bg_img_ele.rect.size[0] > 0:
                             display_width = bg_img_ele.rect.size[0]
                             break
                     except Exception:
@@ -160,18 +280,25 @@ def auto_login_yidun(page: ChromiumPage, max_retries: int = 3) -> bool:
                     click_refresh_and_wait(page)
                     continue
 
-                bg_url = bg_img_ele.attr('src')
-                slider_url = slider_img_ele.attr('src')
+                bg_url = bg_img_ele.attr("src")
+                slider_url = slider_img_ele.attr("src")
+                if not bg_url or not slider_url:
+                    click_refresh_and_wait(page)
+                    continue
 
-                bg_bytes = download_image(bg_url)
-                slider_bytes = download_image(slider_url)
+                bg_bytes = download_image(bg_url, referer=page.url)
+                slider_bytes = download_image(slider_url, referer=page.url)
 
                 gap_x_original, confidence = identify_gap_tcaptcha(bg_bytes, slider_bytes)
                 if confidence < 0.3:
                     click_refresh_and_wait(page)
                     continue
 
-                bg_img_cv = cv2.imdecode(np.frombuffer(bg_bytes, np.uint8), 1)
+                bg_img_cv = cv2.imdecode(np.frombuffer(bg_bytes, np.uint8), cv2.IMREAD_COLOR)
+                if bg_img_cv is None:
+                    click_refresh_and_wait(page)
+                    continue
+
                 original_width = bg_img_cv.shape[1]
                 ratio = calculate_display_ratio(display_width, original_width)
                 gap_x_display = int(gap_x_original / ratio) + 4
@@ -180,68 +307,66 @@ def auto_login_yidun(page: ChromiumPage, max_retries: int = 3) -> bool:
                 page.actions.hold(slider_btn)
                 for step in tracks:
                     y_jitter = random.choice([-1, 0, 1]) if random.random() > 0.8 else 0
-                    page.actions.move(offset_x=step, offset_y=y_jitter)
+                    page.actions.move(offset_x=step, offset_y=y_jitter, duration=0.01)
 
-                time.sleep(random.uniform(0.2, 0.5))
+                time.sleep(random.uniform(0.05, 0.1))
                 page.actions.release()
 
                 time.sleep(2)
-                if 'login.html' not in page.url:
-                    logger.info("滑块验证通过，登录成功！")
+                if "login.html" not in page.url:
                     save_cookies(page)
                     return True
 
-                is_success = page.ele('css:.yidun.yidun--success', timeout=2)
+                is_success = page.ele("css:.yidun.yidun--success", timeout=2)
                 if is_success:
                     time.sleep(1)
-                    if 'login.html' not in page.url:
-                        logger.info("滑块验证通过，登录成功！")
+                    if "login.html" not in page.url:
                         save_cookies(page)
                         return True
-                    else:
-                        click_refresh_and_wait(page)
-                        continue
 
                 click_refresh_and_wait(page)
-            except Exception as e:
+            except Exception:
                 click_refresh_and_wait(page)
-                continue
 
         return False
-    except Exception as e:
-        logger.error(f"自动登录异常: {e}")
+    except Exception as exc:
+        logger.error(f"自动登录异常: {exc}")
         return False
 
 
-def base64_to_cv2(base64_str):
-    if ',' in base64_str:
-        base64_str = base64_str.split(',')[1]
-    img_data = base64.b64decode(base64_str)
-    nparr = np.frombuffer(img_data, np.uint8)
-    img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-    return img
+def _decode_captcha_background(bg_url: str, referer: str) -> np.ndarray:
+    if bg_url.startswith("data:image"):
+        bg_bytes = base64.b64decode(bg_url.split(",", 1)[1])
+    else:
+        bg_bytes = download_image(bg_url, referer=referer)
+
+    bg_img_cv = cv2.imdecode(np.frombuffer(bg_bytes, np.uint8), cv2.IMREAD_COLOR)
+    if bg_img_cv is None:
+        raise ValueError("验证码背景图解码失败")
+
+    return bg_img_cv
 
 
-# === 独立线程：自动化主控任务 (增加全局重试机制) ===
 def automation_task(session_id: str, req: InitReq):
     session = active_sessions[session_id]
 
-    ocr_img_path = f"ocr_{session_id}.jpg"
-
     for attempt in range(1, MAX_GLOBAL_RETRIES + 1):
-        logger.info(f"[{session_id}] 启动全局自动化工作流，当前尝试: {attempt}/{MAX_GLOBAL_RETRIES}")
+        logger.info(f"[{session_id}] 启动自动化工作流，当前尝试: {attempt}/{MAX_GLOBAL_RETRIES}")
         page = None
+        profile_dir = None
 
         try:
-            page = ChromiumPage(addr_or_opts=get_options())
+            options, profile_dir = get_browser_options(
+                session_id=session_id,
+                attempt=attempt,
+                headless=_env_flag("VERIFY_HEADLESS", True),
+            )
+            page = ChromiumPage(addr_or_opts=options)
 
             if not auto_login_yidun(page):
-                raise Exception("自动登录及滑块验证失败")
+                raise RuntimeError("自动登录及滑块验证失败")
 
-            try:
-                page.listen.start('externalAPI/getSoftPublicity')
-            except Exception as e:
-                raise Exception(f"启动网络监听失败: {e}")
+            page.listen.start("externalAPI/getSoftPublicity")
 
             query_url = (
                 f"https://register.ccopyright.com.cn/publicInquiry.html?"
@@ -252,99 +377,81 @@ def automation_task(session_id: str, req: InitReq):
             logger.info(f"[{session_id}] 已导航至查询页，等待验证码弹窗...")
             time.sleep(1)
 
-            modal = page.wait.ele_displayed(".yidun_modal", timeout=10)
+            modal = page.wait.ele_displayed(".yidun_modal", timeout=CAPTCHA_MODAL_TIMEOUT_SECONDS)
             if not modal:
-                packet = page.listen.wait(timeout=2)
+                packet = page.listen.wait(timeout=LISTEN_PACKET_TIMEOUT_SECONDS)
                 if packet:
                     session["data"] = packet.response.body
                     session["status"] = "SUCCESS"
                     return
-                raise Exception("超时未发现验证码弹窗")
+                raise RuntimeError("未发现验证码弹窗，且未抓取到官方查询结果")
 
             time.sleep(2)
-            inst_text = modal.ele(".:yidun-fallback__tip").text
-            print(inst_text)
+            instruction_ele = modal.ele(".:yidun-fallback__tip")
+            if not instruction_ele or not instruction_ele.text:
+                raise RuntimeError("未读取到验证码提示词")
 
-            img_base64 = modal.get_screenshot(as_base64="webp")
+            bg_img_ele = modal.ele(".yidun_bg-img")
+            if not bg_img_ele:
+                raise RuntimeError("验证码背景图元素不存在")
 
-            modal.ele('.yidun_bg-img').save(path=".", name=ocr_img_path, timeout=2, rename=False)
+            bg_url = bg_img_ele.attr("src")
+            if not bg_url:
+                raise RuntimeError("验证码背景图地址为空")
 
+            bg_img_cv = _decode_captcha_background(bg_url, referer=page.url)
             sim_result = get_target_coords(
-                model_path="./captcha_multi_task.pth",
-                img_path=f"./{ocr_img_path}",
-                instruction_text=inst_text
+                model_path=str(CAPTCHA_MODEL_PATH),
+                img_path=bg_img_cv,
+                instruction_text=instruction_ele.text,
             )
-
-            session["captcha_data"] = {
-                "bg_image": f"data:image/webp;base64,{img_base64}",
-                "width": modal.rect.size[0],
-                "height": modal.rect.size[1]
-            }
-            session["status"] = "CAPTCHA_REQUIRED"
-
-            logger.info(f"[{session_id}] 接收到坐标，开始模拟 AI 识别点击...")
-            print("sim_result", sim_result)
-
             if not sim_result or len(sim_result) < 2:
-                raise Exception("模型未能识别出有效坐标")
+                raise RuntimeError("验证码目标识别失败")
 
-            offset_x = sim_result[0]
-            offset_y = sim_result[1]
+            offset_x, offset_y = sim_result[0], sim_result[1]
+            logger.info(f"[{session_id}] 模型识别坐标: ({offset_x}, {offset_y})，准备点击...")
             page.actions.move_to(ele_or_loc=modal, offset_x=offset_x, offset_y=offset_y)
             time.sleep(random.uniform(0.6, 1.0))
-            modal.ele('.yidun_bg-img').click.at(offset_x=offset_x, offset_y=offset_y)
+            bg_img_ele.click.at(offset_x=offset_x, offset_y=offset_y)
 
             logger.info(f"[{session_id}] 点击完成，等待页面数据渲染...")
-            list_container = page.wait.ele_displayed('.public_inquiry_list', timeout=15)
-
+            list_container = page.wait.ele_displayed(".public_inquiry_list", timeout=RESULT_WAIT_TIMEOUT_SECONDS)
             if list_container:
                 items = page.eles(".list_item")
                 if items:
-                    extracted_data = [{"text": i.text} for i in items]
-                    session["data"] = extracted_data
-                    session["status"] = "SUCCESS"
-                    logger.info(f"[{session_id}] 成功从页面抓取到 {len(items)} 条数据: {extracted_data}")
+                    session["data"] = [{"text": item.text} for item in items]
                 else:
                     session["data"] = []
-                    session["status"] = "SUCCESS"
-                    logger.info(f"[{session_id}] 官方数据库中未查到该证书")
+                session["status"] = "SUCCESS"
+                logger.info(f"[{session_id}] 查询完成，结果条数: {len(session['data'])}")
+                return
 
-                return  # 任务成功
+            error_tip = page.ele(".el-message__content")
+            if error_tip:
+                raise RuntimeError(f"页面出现报错提示: {error_tip.text}")
+            raise RuntimeError("验证通过后，超时未加载出查询结果")
 
-            else:
-                error_tip = page.ele('.el-message__content')
-                if error_tip:
-                    raise Exception(f"页面出现报错提示: {error_tip.text}")
-                else:
-                    raise Exception("验证点击通过后，超时未加载出查询结果")
-
-        except Exception as e:
-            logger.error(f"[{session_id}] 自动化流第 {attempt} 次尝试异常: {e}")
+        except Exception as exc:
+            logger.error(f"[{session_id}] 自动化流第 {attempt} 次尝试异常: {exc}")
             if attempt == MAX_GLOBAL_RETRIES:
                 session["status"] = "FAILED"
-                session["error"] = str(e)
+                session["error"] = str(exc)
             else:
                 logger.info(f"[{session_id}] 准备进行第 {attempt + 1} 次重试...")
-                time.sleep(2)  # 给系统缓冲时间
-
-        # 安全退出与清理资源
+                time.sleep(2)
         finally:
             if page:
                 try:
                     page.listen.stop()
-                except Exception as ex:
-                    logger.debug(f"尝试停止监听失败 (不影响后续流程): {ex}")
+                except Exception as exc:
+                    logger.debug(f"尝试停止监听失败 (可忽略): {exc}")
 
                 try:
                     page.quit()
-                except Exception as ex:
-                    logger.debug(f"尝试关闭页面失败: {ex}")
+                except Exception as exc:
+                    logger.debug(f"尝试关闭页面失败: {exc}")
 
-            if os.path.exists(ocr_img_path):
-                try:
-                    os.remove(ocr_img_path)
-                except OSError:
-                    pass
+            _cleanup_runtime_dir(profile_dir)
 
 
 @router.post("/verify/init-query")
@@ -352,16 +459,13 @@ async def init_query(req: InitReq):
     session_id = str(uuid.uuid4())
     active_sessions[session_id] = {
         "status": "INITIALIZING",
-        "coords": None,
-        "start_time": time.time()
+        "start_time": time.time(),
     }
 
     threading.Thread(target=automation_task, args=(session_id, req), daemon=True).start()
 
-    timeout = 300
     start_wait = time.time()
-
-    while time.time() - start_wait < timeout:
+    while time.time() - start_wait < INIT_QUERY_TIMEOUT_SECONDS:
         session = active_sessions.get(session_id)
         if not session:
             raise HTTPException(500, "会话执行失败或被意外清理")
@@ -369,13 +473,9 @@ async def init_query(req: InitReq):
         if session["status"] == "SUCCESS":
             data = session.get("data", [])
             active_sessions.pop(session_id, None)
-            return {
-                "code": 200,
-                "msg": "查询成功",
-                "data": data
-            }
+            return {"code": 200, "msg": "查询成功", "data": data}
 
-        elif session["status"] == "FAILED":
+        if session["status"] == "FAILED":
             error = session.get("error", "未知错误")
             active_sessions.pop(session_id, None)
             raise HTTPException(400, f"查询失败: {error}")
@@ -384,35 +484,3 @@ async def init_query(req: InitReq):
 
     active_sessions.pop(session_id, None)
     raise HTTPException(504, "流程超时，任务未能在规定时间内完成")
-
-
-# === 接口 2: 人工管理台获取待处理任务列表 ===
-@router.get("/verify/pending")
-async def get_pending_captchas():
-    pending_list = []
-    for sid, session in active_sessions.items():
-        if session.get("status") == "CAPTCHA_REQUIRED":
-            pending_list.append({
-                "session_id": sid,
-                "bg_image": session["captcha_data"]["bg_image"],
-                "width": session["captcha_data"]["width"],
-                "height": session["captcha_data"]["height"],
-                "wait_time": int(time.time() - session["start_time"])
-            })
-    return {"code": 200, "data": pending_list}
-
-
-# === 接口 3: 人工提交坐标 (非阻塞) ===
-@router.post("/verify/submit-query")
-async def submit_query(req: SubmitReq):
-    session = active_sessions.get(req.session_id)
-    if not session:
-        raise HTTPException(404, "任务不存在或已过期")
-
-    if session["status"] != "CAPTCHA_REQUIRED":
-        raise HTTPException(400, "当前任务状态不可提交坐标")
-
-    session["coords"] = req.points
-    session["status"] = "PROCESSING"
-
-    return {"code": 200, "msg": "指令已下发浏览器"}

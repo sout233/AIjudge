@@ -60,10 +60,8 @@ export const judgeApi = {
           register_no: regNo,
           keyword: keyword,
         },
-        { timeout: 300000 },
+        { timeout: 600000 },
       );
-
-      console.log("【调试】后端返回结果:", response);
 
       const payload = response.code !== undefined ? response : response.data;
 
@@ -81,12 +79,6 @@ export const judgeApi = {
         if (ownerMatch && softNameMatch) {
           return { status: "success" };
         } else {
-          console.warn(
-            "【调试】数据不匹配。目标:",
-            { owner, softName },
-            "实际文本:",
-            textContent,
-          );
           return { status: "mismatch" };
         }
       }
@@ -97,17 +89,6 @@ export const judgeApi = {
       throw error;
     }
   },
-
-  getPendingCaptchas: (): Promise<any> => client.get("/verify/pending"),
-
-  submitCaptchaPoints: (
-    sessionId: string,
-    points: { x: number; y: number }[],
-  ): Promise<any> =>
-    client.post("/verify/submit-query", {
-      session_id: sessionId,
-      points: points,
-    }),
 
   uploadAndVerifyCertificate: (file: File): Promise<any> => {
     const formData = new FormData();

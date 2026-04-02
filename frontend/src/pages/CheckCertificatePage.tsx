@@ -1,30 +1,22 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  ArrowLeft,
-  Upload,
-  Search,
-  CheckCircle2,
   AlertTriangle,
-  XCircle,
+  ArrowLeft,
+  CheckCircle2,
   FileText,
   Loader2,
-  Shield,
-  RefreshCw,
-  X,
+  Search,
+  Upload,
+  XCircle,
 } from "lucide-react";
+
 import { judgeApi } from "@/api/judge";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 
 type VerificationStatus =
   | "idle"
@@ -33,81 +25,13 @@ type VerificationStatus =
   | "not_found"
   | "mismatch";
 
-interface CaptchaTask {
-  session_id: string;
-  wait_time: number;
-  width: number;
-  height: number;
-  bg_image: string;
-}
-
-interface Point {
-  x: number;
-  y: number;
-}
-
 export function CheckCertificatePage() {
   const navigate = useNavigate();
   const [status, setStatus] = useState<VerificationStatus>("idle");
-
-  // 表单状态
   const [regNo, setRegNo] = useState("");
   const [owner, setOwner] = useState("");
   const [softName, setSoftName] = useState("");
 
-  // 验证码弹窗状态
-  const [captchaDialogOpen, setCaptchaDialogOpen] = useState(false);
-  const [currentTask, setCurrentTask] = useState<CaptchaTask | null>(null);
-  const [points, setPoints] = useState<Point[]>([]);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [pendingCount, setPendingCount] = useState(0);
-
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
-  const processedTasksRef = useRef<Set<string>>(new Set());
-
-  const API_BASE = "http://127.0.0.1:8000/api/verify";
-
-  // 后台轮询检查验证码任务
-  const checkCaptchaTasks = useCallback(async () => {
-    // 如果当前已有弹窗打开，跳过本次检查
-    if (captchaDialogOpen) return;
-
-    try {
-      const result = await judgeApi.getPendingCaptchas();
-      const tasks: CaptchaTask[] = result.data || result;
-
-      setPendingCount(tasks.length);
-
-      // 查找未处理的任务
-      const unprocessedTask = tasks.find(
-        (task) => !processedTasksRef.current.has(task.session_id),
-      );
-
-      if (unprocessedTask) {
-        // 标记为已处理，避免重复弹出
-        processedTasksRef.current.add(unprocessedTask.session_id);
-        setCurrentTask(unprocessedTask);
-        setPoints([]);
-        setCaptchaDialogOpen(true);
-      }
-    } catch (error) {
-      console.error("检查验证码任务失败", error);
-    }
-  }, [captchaDialogOpen, API_BASE]);
-
-  // 启动后台轮询
-  useEffect(() => {
-    checkCaptchaTasks(); // 立即执行一次
-    intervalRef.current = setInterval(checkCaptchaTasks, 3000);
-
-    return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-      }
-    };
-  }, [checkCaptchaTasks]);
-
-  // 证书核验功能
   const handleVerify = async () => {
     if (!regNo || (!owner && !softName)) {
       alert("请填写登记号，并至少填写著作权人或软件名称中的一项");
@@ -117,7 +41,6 @@ export function CheckCertificatePage() {
     setStatus("loading");
     try {
       const response = await judgeApi.verifyCertificate(regNo, owner, softName);
-      console.log(response)
 
       if (response.status === "success") {
         setStatus("success");
@@ -135,14 +58,13 @@ export function CheckCertificatePage() {
     }
   };
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
     if (!file) return;
 
     setStatus("loading");
     try {
       const response = await judgeApi.uploadAndVerifyCertificate(file);
-      console.log(response)
 
       if (response.status === "success") {
         setRegNo(response.reg_no || "");
@@ -160,53 +82,9 @@ export function CheckCertificatePage() {
       console.error("文件验证失败:", error);
       alert("文件验证失败，请稍后重试");
       setStatus("idle");
-    }
-  };
-
-  // 验证码处理功能
-  const recordPoint = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!currentTask) return;
-
-    const wrapper = e.currentTarget;
-    const rect = wrapper.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-
-    setPoints((prev) => [
-      ...prev,
-      { x: parseFloat(x.toFixed(2)), y: parseFloat(y.toFixed(2)) },
-    ]);
-  };
-
-  const resetPoints = () => {
-    setPoints([]);
-  };
-
-  const submitCaptcha = async () => {
-    if (!currentTask || points.length === 0) {
-      alert("请先标注坐标");
-      return;
-    }
-
-    setIsSubmitting(true);
-
-    try {
-      await judgeApi.submitCaptchaPoints(currentTask.session_id, points);
-
-      setCaptchaDialogOpen(false);
-      setCurrentTask(null);
-      setPoints([]);
-    } catch (error) {
-      alert("提交异常");
     } finally {
-      setIsSubmitting(false);
+      event.target.value = "";
     }
-  };
-
-  const skipCurrentTask = () => {
-    setCaptchaDialogOpen(false);
-    setCurrentTask(null);
-    setPoints([]);
   };
 
   return (
@@ -216,27 +94,19 @@ export function CheckCertificatePage() {
         返回首页
       </Button>
 
-      {/* 页面标题 */}
-      <div className="text-center space-y-2">
+      <div className="text-center space-y-3">
         <h1 className="text-3xl font-bold tracking-tight">证书真伪核验</h1>
         <p className="text-muted-foreground">
           通过官方数据库实时核对软件著作权登记证书的真实性
         </p>
-
-        {/* 后台轮询状态指示器 */}
-        {pendingCount > 0 && (
-          <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground mt-2">
-            <RefreshCw className="h-3 w-3 animate-spin" />
-            <span>系统后台检测中</span>
-            <Badge variant="secondary" className="text-xs">
-              {pendingCount} 个待处理任务
-            </Badge>
-          </div>
-        )}
+        <div className="flex justify-center">
+          <Badge variant="secondary" className="px-3 py-1 text-sm">
+            验证码由模型自动处理，联网核验通常需要 1 到 5 分钟
+          </Badge>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* 左侧：文件上传识别 */}
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
         <Card className="border-dashed border-2">
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
@@ -250,7 +120,7 @@ export function CheckCertificatePage() {
                 (
                   document.querySelector(
                     'input[type="file"]',
-                  ) as HTMLInputElement
+                  ) as HTMLInputElement | null
                 )?.click()
               }
             >
@@ -270,7 +140,6 @@ export function CheckCertificatePage() {
           </CardContent>
         </Card>
 
-        {/* 右侧：手动输入 */}
         <Card>
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
@@ -286,7 +155,7 @@ export function CheckCertificatePage() {
                 id="regNo"
                 placeholder="如: 2024SR012345"
                 value={regNo}
-                onChange={(e) => setRegNo(e.target.value)}
+                onChange={(event) => setRegNo(event.target.value)}
               />
             </div>
             <div className="space-y-2">
@@ -295,7 +164,7 @@ export function CheckCertificatePage() {
                 id="owner"
                 placeholder="公司或个人名称"
                 value={owner}
-                onChange={(e) => setOwner(e.target.value)}
+                onChange={(event) => setOwner(event.target.value)}
               />
             </div>
             <div className="space-y-2">
@@ -304,7 +173,7 @@ export function CheckCertificatePage() {
                 id="softName"
                 placeholder="全称或简称"
                 value={softName}
-                onChange={(e) => setSoftName(e.target.value)}
+                onChange={(event) => setSoftName(event.target.value)}
               />
             </div>
           </CardContent>
@@ -317,13 +186,15 @@ export function CheckCertificatePage() {
         disabled={status === "loading"}
       >
         {status === "loading" ? (
-          <Loader2 className="mr-2 animate-spin" />
+          <>
+            <Loader2 className="mr-2 animate-spin" />
+            联网核验中，请勿关闭页面
+          </>
         ) : (
           "开始联网核验"
         )}
       </Button>
 
-      {/* 结果显示区域 */}
       {status !== "idle" && status !== "loading" && (
         <div className="animate-in zoom-in-95 duration-300">
           {status === "success" && (
@@ -365,98 +236,6 @@ export function CheckCertificatePage() {
           )}
         </div>
       )}
-
-      {/* 验证码弹窗 */}
-      <Dialog open={captchaDialogOpen} onOpenChange={setCaptchaDialogOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Shield className="h-5 w-5 text-primary" />
-              安全验证
-            </DialogTitle>
-          </DialogHeader>
-
-          {currentTask && (
-            <div className="space-y-4">
-              <div className="text-sm text-muted-foreground text-center">
-                请点击图片中的目标位置完成验证
-                {pendingCount > 1 && (
-                  <Badge variant="outline" className="ml-2">
-                    剩余 {pendingCount - 1} 个任务
-                  </Badge>
-                )}
-              </div>
-
-              <div
-                className="relative cursor-crosshair border rounded-lg overflow-hidden mx-auto shadow-inner bg-muted"
-                style={{ width: currentTask.width, height: currentTask.height }}
-                onClick={recordPoint}
-              >
-                <img
-                  src={currentTask.bg_image}
-                  width={currentTask.width}
-                  height={currentTask.height}
-                  alt="验证码"
-                  className="block"
-                />
-                {/* 渲染已点击的点 */}
-                {points.map((point, index) => (
-                  <div
-                    key={index}
-                    className="absolute w-6 h-6 bg-primary text-primary-foreground rounded-full flex items-center justify-center text-xs font-bold transform -translate-x-1/2 -translate-y-1/2 pointer-events-none shadow-lg ring-2 ring-white"
-                    style={{ left: point.x, top: point.y }}
-                  >
-                    {index + 1}
-                  </div>
-                ))}
-              </div>
-
-              {/* 坐标显示 */}
-              {points.length > 0 && (
-                <div className="flex flex-wrap gap-2 justify-center">
-                  {points.map((point, index) => (
-                    <Badge key={index} variant="secondary" className="text-xs">
-                      点{index + 1}: ({point.x}, {point.y})
-                    </Badge>
-                  ))}
-                </div>
-              )}
-
-              <div className="flex gap-3 pt-2">
-                <Button
-                  variant="outline"
-                  className="flex-1"
-                  onClick={resetPoints}
-                  disabled={isSubmitting}
-                >
-                  <RefreshCw className="h-4 w-4 mr-2" />
-                  重置
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={skipCurrentTask}
-                  disabled={isSubmitting}
-                >
-                  <X className="h-4 w-4 mr-2" />
-                  跳过
-                </Button>
-                <Button
-                  className="flex-1"
-                  onClick={submitCaptcha}
-                  disabled={isSubmitting || points.length === 0}
-                >
-                  {isSubmitting ? (
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  ) : (
-                    <CheckCircle2 className="h-4 w-4 mr-2" />
-                  )}
-                  提交
-                </Button>
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
