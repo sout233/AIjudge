@@ -9,14 +9,10 @@ import {
   FolderTree, 
   Trophy, 
   Sparkles,
-  ChevronRight,
   Cpu,
   Layers,
-  File,
   X,
-  Trash2,
   AlertCircle,
-  FileArchive,
   Package,
   History,
   Zap,
@@ -30,10 +26,10 @@ import { authApi } from '@/api/auth';
 import { useHistoryStore } from '@/stores/historyStore';
 import { useBatchStore, type BatchFile } from '@/stores/batchStore';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/utils';
-import { Badge } from '@/components/ui/badge';
+
 import { ContestLogo } from '@/components/ContestLogo';
 
 type UploadMode = 'single' | 'multi' | 'zip';
@@ -96,7 +92,7 @@ export function StartPage() {
           updateFileStatus(fileId, { status: 'success', progress: 100 });
           return true;
         } else if (res.status === 'failed' || res.status === 'error') {
-          updateFileStatus(fileId, { status: 'failed', progress: 100, error: res.error || '测评失败' });
+          updateFileStatus(fileId, { status: 'failed', progress: 100, error: res.workflow_data?.workflow_data?.data?.error || '测评失败' });
           return true;
         } else {
           updateFileStatus(fileId, { status: 'processing', progress: 80 });

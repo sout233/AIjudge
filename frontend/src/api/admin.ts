@@ -9,7 +9,7 @@ export const adminApi = {
     client.post('/admin/contests', data),
 
   updateContest: (contestId: string, data: Contest): Promise<void> =>
-    client.post('/admin/contests', data),
+    client.post(`/admin/contests/${contestId}`, data),
   
   deleteContest: (contestId: string): Promise<void> => 
     client.delete(`/admin/contests/${contestId}`),

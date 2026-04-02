@@ -1,10 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { 
   FileText, 
   Calendar, 
-  Clock, 
   ChevronRight, 
   Search,
   Filter,
@@ -20,10 +19,10 @@ import { judgeApi } from '@/api/judge';
 import { adminApi } from '@/api/admin';
 import { authApi } from '@/api/auth';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import type { JudgeHistory, Contest } from '@/types';
+import type { JudgeHistory } from '@/types';
 
 export function HistoryPage() {
   const navigate = useNavigate();

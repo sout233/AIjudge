@@ -2,26 +2,22 @@ import { useRef, useEffect, useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   Download,
-  FileText,
   AlertTriangle,
   XCircle,
   Loader2,
   Users,
   User,
   BarChart3,
-  LayoutDashboard,
   CheckCircle2,
   ArrowLeft,
-  Cpu,
   Sparkles,
-  ExternalLink,
   Target,
   Trophy
 } from 'lucide-react';
 import { useJudgePolling } from '@/hooks/useJudgePolling';
 import { judgeApi } from '@/api/judge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -34,7 +30,7 @@ export function ResultPage() {
   const navigate = useNavigate();
   const scrollBoxRef = useRef<HTMLDivElement>(null);
   const [downloading, setDownloading] = useState(false);
-  const [activeTab, setActiveTab] = useState("summary");
+  const [, setActiveTab] = useState("summary");
 
   const { status, statusText, progressText, result, isLoading } = useJudgePolling(workflowRunId);
 

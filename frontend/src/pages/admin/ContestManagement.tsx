@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Trash2, Loader2, ImagePlus, X, Settings2, FolderTree, Pencil, Calendar, Info } from 'lucide-react';
+import { Plus, Trash2, ImagePlus, X, Settings2, FolderTree, Pencil, Calendar, Info } from 'lucide-react';
 import { adminApi } from '@/api/admin';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -48,7 +48,7 @@ export function ContestManagement() {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editingContest, setEditingContest] = useState<Contest | null>(null);
 
-  const { data: contests = [], isLoading } = useQuery({
+  const { data: contests = [] } = useQuery({
     queryKey: ['contests'],
     queryFn: adminApi.getContests,
   });
@@ -96,6 +96,7 @@ export function ContestManagement() {
       description: '',
       logo_url: newContest.logo_url,
       status: 'active',
+      category: '',
       tracks: []
     });
   };

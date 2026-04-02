@@ -60,6 +60,10 @@ async def upload_file(file: UploadFile = File(...)):
     filename = f"{file_hash}{ext}"
     path = os.path.join(UPLOAD_DIR, filename)
 
+    # 确保上传目录存在
+    if not os.path.exists(UPLOAD_DIR):
+        os.makedirs(UPLOAD_DIR, exist_ok=True)
+
     if os.path.exists(path):
         return {"success": True, "filename": filename, "original_name": file.filename, "is_cached": True}
 
