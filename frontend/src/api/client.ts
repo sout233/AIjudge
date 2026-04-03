@@ -1,6 +1,8 @@
 import axios, { AxiosInstance, AxiosError, InternalAxiosRequestConfig } from 'axios';
 import { useAuthStore } from '@/stores/authStore';
 
+const DEFAULT_API_TIMEOUT_MS = 15 * 60 * 1000;
+
 // 扩展 AxiosRequestConfig 类型以包含自定义属性
 declare module 'axios' {
   interface InternalAxiosRequestConfig {
@@ -10,7 +12,7 @@ declare module 'axios' {
 
 const client: AxiosInstance = axios.create({
   baseURL: '/api',
-  timeout: 300000,
+  timeout: DEFAULT_API_TIMEOUT_MS,
 });
 
 // Request interceptor: 自动添加 Token

@@ -37,10 +37,13 @@ CAPTCHA_MODEL_PATH = BASE_DIR / "captcha_multi_task.pth"
 COOKIE_FILE = BASE_DIR / "yidun_cookies.json"
 RUNTIME_DIR = BASE_DIR / ".runtime" / "verify_certificate"
 MAX_GLOBAL_RETRIES = 3
-INIT_QUERY_TIMEOUT_SECONDS = int(os.getenv("VERIFY_INIT_QUERY_TIMEOUT_SECONDS", "600"))
-LISTEN_PACKET_TIMEOUT_SECONDS = int(os.getenv("VERIFY_LISTEN_PACKET_TIMEOUT_SECONDS", "10"))
-CAPTCHA_MODAL_TIMEOUT_SECONDS = int(os.getenv("VERIFY_CAPTCHA_MODAL_TIMEOUT_SECONDS", "15"))
-RESULT_WAIT_TIMEOUT_SECONDS = int(os.getenv("VERIFY_RESULT_WAIT_TIMEOUT_SECONDS", "30"))
+# 兼容性能较差的 Linux 服务器，默认放宽整条链路的等待时间。
+INIT_QUERY_TIMEOUT_SECONDS = int(os.getenv("VERIFY_INIT_QUERY_TIMEOUT_SECONDS", "1200"))
+LISTEN_PACKET_TIMEOUT_SECONDS = int(os.getenv("VERIFY_LISTEN_PACKET_TIMEOUT_SECONDS", "20"))
+CAPTCHA_MODAL_TIMEOUT_SECONDS = int(os.getenv("VERIFY_CAPTCHA_MODAL_TIMEOUT_SECONDS", "30"))
+RESULT_WAIT_TIMEOUT_SECONDS = int(os.getenv("VERIFY_RESULT_WAIT_TIMEOUT_SECONDS", "90"))
+LOGIN_FORM_TIMEOUT_SECONDS = int(os.getenv("VERIFY_LOGIN_FORM_TIMEOUT_SECONDS", "20"))
+LOGIN_POPUP_TIMEOUT_SECONDS = int(os.getenv("VERIFY_LOGIN_POPUP_TIMEOUT_SECONDS", "10"))
 BROWSER_ENV_KEYS = (
     "VERIFY_BROWSER_PATH",
     "BROWSER_PATH",
@@ -67,6 +70,49 @@ router = APIRouter()
 class InitReq(BaseModel):
     register_no: str
     keyword: str
+
+
+def _stringify_result_item(item) -> str:
+    if item is None:
+        return ""
+
+    if isinstance(item, str):
+        return item.strip()
+
+    if isinstance(item, dict):
+        if isinstance(item.get("text"), str):
+            return item["text"].strip()
+        return json.dumps(item, ensure_ascii=False, indent=2)
+
+    if isinstance(item, (list, tuple)):
+        return json.dumps(item, ensure_ascii=False, indent=2)
+
+    return str(item).strip()
+
+
+def _normalize_result_data(raw_data) -> list[dict]:
+    if raw_data is None:
+        return []
+
+    if isinstance(raw_data, dict):
+        for key in ("data", "list", "rows", "result", "records"):
+            value = raw_data.get(key)
+            if isinstance(value, list):
+                return _normalize_result_data(value)
+
+        text = _stringify_result_item(raw_data)
+        return [{"title": "官方返回数据", "text": text}] if text else []
+
+    if isinstance(raw_data, list):
+        normalized = []
+        for index, item in enumerate(raw_data, start=1):
+            text = _stringify_result_item(item)
+            if text:
+                normalized.append({"title": f"查询结果 {index}", "text": text})
+        return normalized
+
+    text = _stringify_result_item(raw_data)
+    return [{"title": "官方返回数据", "text": text}] if text else []
 
 
 def _env_flag(name: str, default: bool) -> bool:
@@ -228,8 +274,8 @@ def auto_login_yidun(page: ChromiumPage, max_retries: int = 3) -> bool:
             logger.info("Cookie 已过期或无效，将执行常规密码登录流程...")
 
         page.get(YIDUN_LOGIN_URL)
-        if not page.wait.ele_displayed("css:.login_pwd", timeout=10):
-            logger.error("登录框未能在 10 秒内加载")
+        if not page.wait.ele_displayed("css:.login_pwd", timeout=LOGIN_FORM_TIMEOUT_SECONDS):
+            logger.error(f"登录框未能在 {LOGIN_FORM_TIMEOUT_SECONDS} 秒内加载")
             return False
 
         user_input = page.ele("@placeholder=请输入用户名/手机号/邮箱")
@@ -249,7 +295,7 @@ def auto_login_yidun(page: ChromiumPage, max_retries: int = 3) -> bool:
         login_btn.click()
         logger.info("已提交登录，等待验证码弹窗...")
 
-        popup_container = page.wait.ele_displayed("css:.yidun_popup", timeout=5)
+        popup_container = page.wait.ele_displayed("css:.yidun_popup", timeout=LOGIN_POPUP_TIMEOUT_SECONDS)
         if not popup_container:
             if "login.html" not in page.url:
                 save_cookies(page)
@@ -381,7 +427,7 @@ def automation_task(session_id: str, req: InitReq):
             if not modal:
                 packet = page.listen.wait(timeout=LISTEN_PACKET_TIMEOUT_SECONDS)
                 if packet:
-                    session["data"] = packet.response.body
+                    session["data"] = _normalize_result_data(packet.response.body)
                     session["status"] = "SUCCESS"
                     return
                 raise RuntimeError("未发现验证码弹窗，且未抓取到官方查询结果")
@@ -418,10 +464,9 @@ def automation_task(session_id: str, req: InitReq):
             list_container = page.wait.ele_displayed(".public_inquiry_list", timeout=RESULT_WAIT_TIMEOUT_SECONDS)
             if list_container:
                 items = page.eles(".list_item")
-                if items:
-                    session["data"] = [{"text": item.text} for item in items]
-                else:
-                    session["data"] = []
+                session["data"] = _normalize_result_data(
+                    [{"text": item.text} for item in items] if items else []
+                )
                 session["status"] = "SUCCESS"
                 logger.info(f"[{session_id}] 查询完成，结果条数: {len(session['data'])}")
                 return

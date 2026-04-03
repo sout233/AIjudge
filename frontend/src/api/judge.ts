@@ -5,6 +5,18 @@ import type {
   JudgeStatusResponse,
 } from "@/types";
 
+const VERIFY_CERTIFICATE_TIMEOUT_MS = 20 * 60 * 1000;
+
+export interface CertificateQueryItem {
+  title: string;
+  text: string;
+}
+
+export interface CertificateQueryResult {
+  status: "found" | "not_found";
+  items: CertificateQueryItem[];
+}
+
 export const judgeApi = {
   uploadFile: (file: File): Promise<UploadResponse> => {
     const formData = new FormData();
@@ -50,7 +62,7 @@ export const judgeApi = {
     regNo: string,
     owner?: string,
     softName?: string,
-  ): Promise<{ status: "success" | "not_found" | "mismatch" }> => {
+  ): Promise<CertificateQueryResult> => {
     const keyword = owner || softName || "";
 
     try {
@@ -60,30 +72,20 @@ export const judgeApi = {
           register_no: regNo,
           keyword: keyword,
         },
-        { timeout: 600000 },
+        { timeout: VERIFY_CERTIFICATE_TIMEOUT_MS },
       );
 
       const payload = response.code !== undefined ? response : response.data;
 
       if (payload && payload.code === 200) {
-        const items = payload.data;
-
-        if (!items || !Array.isArray(items) || items.length === 0) {
-          return { status: "not_found" };
-        }
-
-        const textContent = JSON.stringify(items);
-        const ownerMatch = owner ? textContent.includes(owner) : true;
-        const softNameMatch = softName ? textContent.includes(softName) : true;
-
-        if (ownerMatch && softNameMatch) {
-          return { status: "success" };
-        } else {
-          return { status: "mismatch" };
-        }
+        const items = Array.isArray(payload.data) ? payload.data : [];
+        return {
+          status: items.length > 0 ? "found" : "not_found",
+          items,
+        };
       }
 
-      return { status: "not_found" };
+      return { status: "not_found", items: [] };
     } catch (error) {
       console.error("核验接口异常:", error);
       throw error;
@@ -93,6 +95,8 @@ export const judgeApi = {
   uploadAndVerifyCertificate: (file: File): Promise<any> => {
     const formData = new FormData();
     formData.append("file", file);
-    return client.post("/verify/upload-extract", formData);
+    return client.post("/verify/upload-extract", formData, {
+      timeout: VERIFY_CERTIFICATE_TIMEOUT_MS,
+    });
   },
 };

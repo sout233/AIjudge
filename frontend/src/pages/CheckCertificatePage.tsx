@@ -3,27 +3,95 @@ import { useNavigate } from "react-router-dom";
 import {
   AlertTriangle,
   ArrowLeft,
-  CheckCircle2,
   FileText,
   Loader2,
   Search,
   Upload,
-  XCircle,
 } from "lucide-react";
 
-import { judgeApi } from "@/api/judge";
+import { judgeApi, type CertificateQueryItem } from "@/api/judge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-type VerificationStatus =
-  | "idle"
-  | "loading"
-  | "success"
-  | "not_found"
-  | "mismatch";
+type VerificationStatus = "idle" | "loading" | "found" | "not_found";
+
+interface ParsedField {
+  label: string;
+  value: string;
+}
+
+const FIELD_LABELS = [
+  "软件全称",
+  "软件简称",
+  "软件名称",
+  "作品名称",
+  "登记号",
+  "分类号",
+  "版本号",
+  "著作权人",
+  "权利人",
+  "开发完成日期",
+  "首次发表日期",
+  "登记日期",
+  "批准日期",
+  "权利取得方式",
+  "权利范围",
+] as const;
+
+function parseCertificateFields(text: string): ParsedField[] {
+  const normalized = text.replace(/\r/g, "").trim();
+  if (!normalized) {
+    return [];
+  }
+
+  const segments = normalized
+    .split(/\n+/)
+    .flatMap((line) => line.split(/\s{2,}/))
+    .map((segment) => segment.trim())
+    .filter(Boolean);
+
+  const parsed: ParsedField[] = [];
+  const seen = new Set<string>();
+
+  for (const segment of segments) {
+    const colonMatch = segment.match(/^([^:：]{1,20})[:：]\s*(.+)$/);
+    if (colonMatch) {
+      const label = colonMatch[1].trim();
+      const value = colonMatch[2].trim();
+      if (label && value) {
+        const key = `${label}::${value}`;
+        if (!seen.has(key)) {
+          seen.add(key);
+          parsed.push({ label, value });
+        }
+      }
+      continue;
+    }
+
+    for (const label of FIELD_LABELS) {
+      if (!segment.startsWith(label)) {
+        continue;
+      }
+
+      const value = segment.slice(label.length).trim().replace(/^[:：]\s*/, "");
+      if (!value) {
+        continue;
+      }
+
+      const key = `${label}::${value}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        parsed.push({ label, value });
+      }
+      break;
+    }
+  }
+
+  return parsed;
+}
 
 export function CheckCertificatePage() {
   const navigate = useNavigate();
@@ -31,24 +99,24 @@ export function CheckCertificatePage() {
   const [regNo, setRegNo] = useState("");
   const [owner, setOwner] = useState("");
   const [softName, setSoftName] = useState("");
+  const [resultItems, setResultItems] = useState<CertificateQueryItem[]>([]);
 
   const handleVerify = async () => {
-    if (!regNo || (!owner && !softName)) {
-      alert("请填写登记号，并至少填写著作权人或软件名称中的一项");
+    if (!regNo) {
+      alert("请填写登记号");
       return;
     }
 
     setStatus("loading");
+    setResultItems([]);
     try {
       const response = await judgeApi.verifyCertificate(regNo, owner, softName);
 
-      if (response.status === "success") {
-        setStatus("success");
-      } else if (response.status === "not_found") {
-        setStatus("not_found");
-      } else if (response.status === "mismatch") {
-        setStatus("mismatch");
+      if (response.status === "found") {
+        setResultItems(response.items);
+        setStatus("found");
       } else {
+        setResultItems([]);
         setStatus("not_found");
       }
     } catch (error) {
@@ -63,20 +131,33 @@ export function CheckCertificatePage() {
     if (!file) return;
 
     setStatus("loading");
+    setResultItems([]);
     try {
       const response = await judgeApi.uploadAndVerifyCertificate(file);
 
-      if (response.status === "success") {
-        setRegNo(response.reg_no || "");
-        setOwner(response.owner || "");
-        setSoftName(response.soft_name || "");
-        setStatus("success");
-      } else if (response.status === "not_found") {
-        setStatus("not_found");
-      } else if (response.status === "mismatch") {
-        setStatus("mismatch");
+      const nextRegNo = response.reg_no || "";
+      const nextOwner = response.owner || "";
+      const nextSoftName = response.soft_name || "";
+
+      setRegNo(nextRegNo);
+      setOwner(nextOwner);
+      setSoftName(nextSoftName);
+
+      if (nextRegNo) {
+        const verifyResult = await judgeApi.verifyCertificate(
+          nextRegNo,
+          nextOwner,
+          nextSoftName,
+        );
+
+        if (verifyResult.status === "found") {
+          setResultItems(verifyResult.items);
+          setStatus("found");
+        } else {
+          setStatus("not_found");
+        }
       } else {
-        setStatus("not_found");
+        setStatus("idle");
       }
     } catch (error) {
       console.error("文件验证失败:", error);
@@ -97,7 +178,7 @@ export function CheckCertificatePage() {
       <div className="text-center space-y-3">
         <h1 className="text-3xl font-bold tracking-tight">证书真伪核验</h1>
         <p className="text-muted-foreground">
-          通过官方数据库实时核对软件著作权登记证书的真实性
+          从官方数据库抓取并展示该登记号对应的公开信息
         </p>
         <div className="flex justify-center">
           <Badge variant="secondary" className="px-3 py-1 text-sm">
@@ -180,6 +261,10 @@ export function CheckCertificatePage() {
         </Card>
       </div>
 
+      <p className="text-sm text-muted-foreground">
+        可只填登记号直接查询；著作权人或软件名称会作为官方站内关键词辅助筛选。
+      </p>
+
       <Button
         className="w-full h-12 text-lg"
         onClick={handleVerify}
@@ -197,15 +282,53 @@ export function CheckCertificatePage() {
 
       {status !== "idle" && status !== "loading" && (
         <div className="animate-in zoom-in-95 duration-300">
-          {status === "success" && (
-            <div className="p-6 rounded-xl border bg-green-50 border-green-200 flex items-start gap-4">
-              <CheckCircle2 className="h-8 w-8 text-green-600 mt-1" />
-              <div>
-                <h3 className="text-green-800 font-bold text-lg">校验通过</h3>
+          {status === "found" && (
+            <div className="space-y-4">
+              <div className="p-6 rounded-xl border bg-green-50 border-green-200">
+                <h3 className="text-green-800 font-bold text-lg">已获取官方查询结果</h3>
                 <p className="text-green-700 text-sm">
-                  该证书信息与中国版权保护中心登记数据完全一致。
+                  以下内容为系统从官方公开页面抓取到的信息。
                 </p>
               </div>
+
+              {resultItems.map((item, index) => (
+                (() => {
+                  const parsedFields = parseCertificateFields(item.text);
+
+                  return (
+                    <Card key={`${item.title}-${index}`}>
+                      <CardHeader>
+                        <CardTitle className="text-base">
+                          {item.title || `查询结果 ${index + 1}`}
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        {parsedFields.length > 0 && (
+                          <div className="grid gap-3 sm:grid-cols-2">
+                            {parsedFields.map((field, fieldIndex) => (
+                              <div
+                                key={`${field.label}-${fieldIndex}`}
+                                className="rounded-lg border bg-muted/30 px-4 py-3"
+                              >
+                                <div className="text-xs text-muted-foreground">
+                                  {field.label}
+                                </div>
+                                <div className="mt-1 break-all text-sm font-medium leading-6 text-foreground">
+                                  {field.value}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        <div className="whitespace-pre-wrap break-all rounded-lg border border-dashed bg-background px-4 py-3 text-sm leading-6 text-foreground">
+                          {item.text}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })()
+              ))}
             </div>
           )}
 
@@ -218,18 +341,6 @@ export function CheckCertificatePage() {
                 </h3>
                 <p className="text-amber-700 text-sm">
                   官方数据库中暂无此登记号记录，请核对输入是否有误或证书是否刚签发。
-                </p>
-              </div>
-            </div>
-          )}
-
-          {status === "mismatch" && (
-            <div className="p-6 rounded-xl border bg-red-50 border-red-200 flex items-start gap-4">
-              <XCircle className="h-8 w-8 text-red-600 mt-1" />
-              <div>
-                <h3 className="text-red-800 font-bold text-lg">信息不匹配</h3>
-                <p className="text-red-700 text-sm">
-                  系统发现登记号对应的官方著作权人或软件名称与您提供的信息不符，请警惕虚假证书。
                 </p>
               </div>
             </div>
