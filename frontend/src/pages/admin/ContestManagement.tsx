@@ -68,7 +68,10 @@ export function ContestManagement() {
 
   // 更新竞赛（用于保存赛道）
   const updateMutation = useMutation({
-    mutationFn: (contest: Contest) => adminApi.updateContest(contest.id, contest),
+    mutationFn: (contest: Contest) => {
+      console.log('Updating contest:', contest);
+      return adminApi.updateContest(contest.id, contest);
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['contests'] });
       // 更新当前正在编辑的赛道列表对象，以反映最新状态
@@ -77,6 +80,10 @@ export function ContestManagement() {
         if (updated) setEditingTracksContest(updated);
       }
     },
+    onError: (err) => {
+      console.error('Update failed:', err);
+      alert('保存失败，请检查控制台。');
+    }
   });
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {

@@ -16,6 +16,9 @@ REPORT_TEMPLATE_DIR = os.path.join(STORAGE_DIR, "download_templates")
 for d in [UPLOAD_DIR, RESULT_DIR, RULE_DIR, CONTEST_DIR]:
     os.makedirs(d, exist_ok=True)
 
+# ================= 演示模式 =================
+DEMO_MODE = "true"
+
 # ================= DIFY 配置 =================
 DIFY_BASE_URL = "http://47.103.34.195:8088/v1"
 DIFY_Main_Workflow_APIKEY = "app-zoMij2BlaNalNKdRi5JICKye"

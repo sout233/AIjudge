@@ -11,7 +11,7 @@ from typing import List, Optional, Dict, Any
 
 from fastapi import APIRouter, BackgroundTasks, File, HTTPException, UploadFile, Depends
 
-from config import CONTEST_FILE, RESULT_DIR, RULE_DIR, UPLOAD_DIR
+from config import CONTEST_FILE, RESULT_DIR, RULE_DIR, UPLOAD_DIR, DEMO_MODE
 from dify import run_workflow_with_file, upload_file_to_dify
 from services.auth_service import get_current_user_name
 from services.duplicate_service import check_duplication
@@ -49,6 +49,109 @@ def load_contests():
 
 def _get_track_rule_id(contest_id: str, track_id: str | None) -> str:
     return track_id if track_id else contest_id
+
+# ================= 预设演示 Mock 库 =================
+# ================= 预设演示 Mock 库 (严格遵循 Dify 提示词规范) =================
+PRESET_DEMO_RESULTS = {
+    "全息脑机接口": {"base": 90, "desc": "脑机接口与全息显示技术结合"},
+    "低空飞翔": {"base": 86, "desc": "eVTOL与红色文化传承项目"},
+    "东北二人转": {"base": 84, "desc": "黑土地文化数字化传承方案"},
+    "数字孪生": {"base": 88, "desc": "超维营造被动房数字孪生"},
+    "旅行金融决策": {"base": 85, "desc": "基于智能算法的金融平台"},
+    "数智非遗": {"base": 87, "desc": "AR技术赋能非遗传承项目"},
+    "跨文化传播": {"base": 86, "desc": "智能跨文化传播生态引擎"},
+    "龙江甄选": {"base": 83, "desc": "雪域冰城探秘小程序项目"},
+    "数字助老": {"base": 89, "desc": "智绘银龄数字助老方案"},
+    "AIGC内容营销": {"base": 91, "desc": "AIGC全链路内容营销方案"}
+}
+
+def get_preset_mock(filename: str):
+    match = None
+    for key, data in PRESET_DEMO_RESULTS.items():
+        if key in filename:
+            match = data
+            break
+    if not match: return None
+
+    project_name = filename.replace(".pdf", "")
+
+    def create_judge_data(tag, style, offset):
+        total = match["base"] + offset
+        d1_score = round(total * 0.4, 1)
+        d2_score = round(total * 0.3, 1)
+        d3_score = round(total * 0.3, 1)
+
+        # 更加专业化的理由库
+        reasons = {
+            "A": [
+                "系统底层架构解耦充分，核心算法在处理复杂非结构化数据时展现了极高的计算效率与稳健性。",
+                "虽然技术路径可行，但针对高并发场景下的数据状态同步机制描述略显单薄，存在潜在的系统延迟风险。"
+            ],
+            "B": [
+                "项目精准捕捉了现有市场在数字化转型中的服务盲区，其创新的商业模式具备极强的用户粘性与增量空间。",
+                "核心竞争壁垒主要依赖于资源整合，在面对巨头快速切入同类赛道时的差异化防御策略还需进一步深挖。"
+            ],
+            "C": [
+                "项目整体执行方案详尽，关键里程碑节点的设置与资源投入配比科学，展现了极强的项目管控与落地能力。",
+                "方案在跨部门协同与长周期运营中的合规性风险管理描述不足，财务预算的可预测性模型有待进一步细化。"
+            ]
+        }
+
+        # 更加具体专业的建议库
+        improves = {
+            "A": ["建议引入分布式一致性协议优化同步逻辑。", "需补充在极端弱网环境下的数据容灾测试数据。"],
+            "B": ["应深研竞品动态，构建基于技术专利的护城河。", "建议细化阶段性营销策略，优化首批用户获客成本。"],
+            "C": ["推荐引入项目管理矩阵，增强各环节的监控力度。", "需细化财务模型中变动成本的敏感度分析。"]
+        }
+
+        return {
+            "judge_tag": tag,
+            "judge_style": style,
+            "total_score": round(d1_score + d2_score + d3_score, 1),
+            "max_score": 100,
+            "dimensions": [
+                {
+                    "dimension_name": "创新性与技术力",
+                    "dimension_weight": 0.4,
+                    "dimension_max_score": 40,
+                    "dimension_score": d1_score,
+                    "points": [
+                        {"point_name": "核心技术逻辑", "score": round(d1_score * 0.6, 1), "max_score": 24, "reason": reasons[tag][0], "improve": improves[tag][0]},
+                        {"point_name": "方案创新程度", "score": round(d1_score * 0.4, 1), "max_score": 16, "reason": "项目在现有技术框架下实现了跨维度的应用创新，具备行业领先的工程化实践价值。", "improve": "建议对比现有开源方案，明确自研模块的技术优势。"}
+                    ]
+                },
+                {
+                    "dimension_name": "市场价值与前景",
+                    "dimension_weight": 0.3,
+                    "dimension_max_score": 30,
+                    "dimension_score": d2_score,
+                    "points": [
+                        {"point_name": "痛点解决能力", "score": round(d2_score * 0.5, 1), "max_score": 15, "reason": reasons[tag][1], "improve": improves[tag][1]},
+                        {"point_name": "商业模式闭环", "score": round(d2_score * 0.5, 1), "max_score": 15, "reason": "其闭环链路逻辑自洽，在获客、转化与存留等核心环节的财务模型设计展现了较强的可持续性。", "improve": "需进一步细化在市场波动环境下的盈利压测报告。"}
+                    ]
+                },
+                {
+                    "dimension_name": "可行性与完整性",
+                    "dimension_weight": 0.3,
+                    "dimension_max_score": 30,
+                    "dimension_score": d3_score,
+                    "points": [
+                        {"point_name": "执行计划详尽", "score": round(d3_score * 0.5, 1), "max_score": 15, "reason": "项目进度安排紧凑且合理，核心任务的分配充分考量了现有资源的承载上限，具备高度的可操作性。", "improve": "建议补充关键技术负责人的具体项目执行经验。"},
+                        {"point_name": "风险控制预案", "score": round(d3_score * 0.5, 1), "max_score": 15, "reason": "建立了基础的风险预警体系，在应对技术迭代与政策波动方面表现稳健，整体执行风险处于可控区间。", "improve": "推荐构建更具前瞻性的动态风险评估决策模型。"}
+                    ]
+                }
+            ],
+            "overall_comment": f"【评委{tag}综述】该项目在{match['desc']}领域展现了深厚的积累与独特的创新视角。虽然在部分深度技术细节与长线财务预测方面仍有打磨空间，但整体方案架构宏大且逻辑缜密，体现了新文科背景下跨学科融合的优秀范式。其商业潜力与社会价值兼具，是当前同赛道中具备极高竞争力的优质作品。"
+        }
+
+    return {
+        "project_name": project_name,
+        "evaluations": [
+            create_judge_data("A", "严谨技术专家", -3.5),
+            create_judge_data("B", "创新与市场专家", 2.1),
+            create_judge_data("C", "综合管理专家", 0.0)
+        ]
+    }
 
 # ================= 业务接口 =================
 
@@ -113,6 +216,77 @@ async def judge_file(
     async def run_task_with_semaphore():
         async with JUDGE_SEMAPHORE:
             try:
+                if DEMO_MODE:
+                    # 极速演示模式：优先使用基于文件名的预设数据
+                    preset_data = get_preset_mock(display_name)
+                    if preset_data:
+                        await asyncio.sleep(1.5)
+                        atomic_write_json(result_path, {
+                            "status": "success",
+                            "elapsed_time": 1.5,
+                            "messages": [{"text": "正在匹配预设演示数据..."}, {"text": "评审完成"}],
+                            "workflow_data": { "data": { "outputs": { "text": preset_data } } },
+                            "metadata": init_state["metadata"]
+                        })
+                        return
+
+                    # 其次尝试克隆现有的成功结果
+                    source_data = None
+
+                    if os.path.exists(RESULT_DIR):
+                        all_files = [f for f in os.listdir(RESULT_DIR) if f.endswith(".json")]
+                        import random
+                        random.shuffle(all_files)
+
+                        for f_name in all_files:
+                            if f_name.startswith(workflow_run_id): continue
+                            try:
+                                with open(os.path.join(RESULT_DIR, f_name), "r", encoding="utf-8") as f:
+                                    old_data = json.load(f)
+                                    if old_data.get("status") in ["success", "succeeded"]:
+                                        # 检查是否包含实质性的评分内容 (outputs.text)
+                                        wd = old_data.get("workflow_data", old_data)
+                                        if wd.get("data", {}).get("outputs", {}).get("text"):
+                                            source_data = old_data
+                                            break
+                            except: continue
+
+                    await asyncio.sleep(1.5) # 模拟一点延迟
+
+                    if source_data:
+                        # 找到了真实的历史案例，保持其原始结构
+                        final_data = source_data
+                        final_data["metadata"] = init_state["metadata"]
+                        atomic_write_json(result_path, final_data)
+                    else:
+                        # 实在找不到，再用保底
+                        atomic_write_json(result_path, {
+                            "status": "success",
+                            "elapsed_time": 1.0,
+                            "messages": [{"text": "演示数据 (未发现历史结果)"}],
+                            "workflow_data": {
+                                "data": {
+                                    "outputs": {
+                                        "text": {
+                                            "project_name": "演示样板项目",
+                                            "evaluations": [
+                                                {
+                                                    "judge_tag": "演示专家",
+                                                    "judge_style": "保底",
+                                                    "total_score": 80,
+                                                    "max_score": 100,
+                                                    "overall_comment": "这是在未发现任何历史 JSON 文件时显示的保底数据。请确保 backend/storage/results 目录下有成功的评审记录。",
+                                                    "dimensions": []
+                                                }
+                                            ]
+                                        }
+                                    }
+                                }
+                            },
+                            "metadata": init_state["metadata"]
+                        })
+                    return
+
                 file_id = upload_file_to_dify(file_path, data.filename, current_user_name)
                 result = run_workflow_with_file(file_id, score_rule_json, current_user_name)
 
@@ -180,6 +354,49 @@ async def execute_batch(manifest, score_rule_json, current_user_name):
                         curr_data = json.load(f)
                     curr_data["status"] = "running"
                     atomic_write_json(task["result_path"], curr_data)
+
+                if DEMO_MODE:
+                    # 极速演示模式：优先使用预设 Mock
+                    preset_data = get_preset_mock(task["metadata"].get("original_filename", ""))
+                    if preset_data:
+                        await asyncio.sleep(1)
+                        atomic_write_json(task["result_path"], {
+                            "status": "success",
+                            "workflow_data": { "data": { "outputs": { "text": preset_data } } },
+                            "metadata": task["metadata"]
+                        })
+                        return
+
+                    source_data = None
+                    if os.path.exists(RESULT_DIR):
+                        all_files = [f for f in os.listdir(RESULT_DIR) if f.endswith(".json")]
+                        import random
+                        random.shuffle(all_files)
+                        for f_name in all_files:
+                            if f_name == os.path.basename(task["result_path"]): continue
+                            try:
+                                with open(os.path.join(RESULT_DIR, f_name), "r", encoding="utf-8") as f:
+                                    old_data = json.load(f)
+                                    if old_data.get("status") in ["success", "succeeded"]:
+                                        wd = old_data.get("workflow_data", old_data)
+                                        if wd.get("data", {}).get("outputs", {}).get("text"):
+                                            source_data = old_data
+                                            break
+                            except: continue
+
+                    await asyncio.sleep(11)
+                    if source_data:
+                        final_data = source_data
+                        final_data["metadata"] = task["metadata"]
+                        atomic_write_json(task["result_path"], final_data)
+                    else:
+                        # 兜底
+                        atomic_write_json(task["result_path"], {
+                            "status": "success",
+                            "workflow_data": { "data": { "outputs": { "text": {"project_name": "批量演示项目", "evaluations": []} } } },
+                            "metadata": task["metadata"]
+                        })
+                    return
 
                 file_path = os.path.join(UPLOAD_DIR, task["filename"])
                 file_id = upload_file_to_dify(file_path, task["filename"], current_user_name)

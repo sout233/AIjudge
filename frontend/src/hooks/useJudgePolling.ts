@@ -14,9 +14,36 @@ const STATUS_MAP: Record<string, string> = {
 
 const parseResult = (data: JudgeStatusResponse): JudgeResult | null => {
   try {
-    const deepOutput = data?.workflow_data?.workflow_data?.data?.outputs?.text;
-    if (deepOutput) {
-      return typeof deepOutput === 'string' ? JSON.parse(deepOutput) : deepOutput;
+    const paths = [
+      data?.workflow_data?.workflow_data?.data?.outputs?.text,
+      data?.workflow_data?.data?.outputs?.text,
+      data?.data?.outputs?.text,
+    ];
+
+    for (const output of paths) {
+      if (output) {
+        let result = typeof output === 'string' ? JSON.parse(output) : output;
+        if (!result) continue;
+
+        // 核心适配逻辑：如果发现是旧版扁平结构（有 dimensions 但没 evaluations）
+        if (result.dimensions && !result.evaluations) {
+          result = {
+            ...result,
+            evaluations: [{
+              judge_tag: "AI 评审员",
+              judge_style: "专业分析",
+              total_score: result.total_score || 0,
+              max_score: result.max_score || 100,
+              overall_comment: result.overall_comment || "评审完成",
+              dimensions: result.dimensions
+            }]
+          };
+        }
+
+        if (result.evaluations || result.project_name) {
+          return result;
+        }
+      }
     }
     return null;
   } catch {

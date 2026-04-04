@@ -176,7 +176,7 @@ export function ResultPage() {
                   <BarChart3 className="w-4 h-4 mr-2" />
                   综合概览
                 </TabsTrigger>
-                {result.evaluations.map((ev: SingleEvaluation) => (
+                {result?.evaluations?.map((ev: SingleEvaluation) => (
                   <TabsTrigger key={ev.judge_tag} value={ev.judge_tag} className="rounded-xl px-6 h-full data-[state=active]:bg-primary data-[state=active]:text-white font-bold uppercase tracking-widest text-[12px] transition-all">
                     <User className="w-4 h-4 mr-2" />
                     专家 {ev.judge_tag}
@@ -212,7 +212,7 @@ export function ResultPage() {
 
                 {/* Judge Quick Cards */}
                 <div className="md:col-span-3 grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  {result.evaluations.map((ev: SingleEvaluation) => (
+                  {result?.evaluations?.map((ev: SingleEvaluation) => (
                     <Card
                         key={ev.judge_tag}
                         className="bg-slate-900/30 backdrop-blur-md border-white/5 hover:border-primary/50 transition-all duration-500 group cursor-pointer relative overflow-hidden"
@@ -245,7 +245,7 @@ export function ResultPage() {
                       </CardTitle>
                   </CardHeader>
                   <CardContent className="grid md:grid-cols-3 gap-8 pt-4">
-                      {result.evaluations.map((ev: SingleEvaluation) => (
+                      {result?.evaluations?.map((ev: SingleEvaluation) => (
                           <div key={ev.judge_tag} className="space-y-4 p-4 rounded-2xl bg-white/5 border border-white/5 hover:bg-white/10 transition-colors">
                               <div className="flex items-center gap-3 border-b border-white/5 pb-3">
                                   <div className="w-8 h-8 rounded-lg bg-slate-800 flex items-center justify-center  text-white font-bold text-primary">
@@ -265,7 +265,7 @@ export function ResultPage() {
             </TabsContent>
 
             {/* Expert Detail View */}
-            {result.evaluations.map((ev: SingleEvaluation) => (
+            {result?.evaluations?.map((ev: SingleEvaluation) => (
               <TabsContent key={ev.judge_tag} value={ev.judge_tag} className="space-y-8 outline-none">
                 <div className="grid md:grid-cols-4 gap-6">
                   <Card className="md:col-span-1 bg-slate-900/60 backdrop-blur-xl border-white/10">
