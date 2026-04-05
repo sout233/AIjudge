@@ -1,4 +1,4 @@
-import { useState, useRef, useMemo } from 'react';
+import { useState, useRef, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { 
@@ -17,8 +17,11 @@ import {
   Trash2,
   AlertCircle,
   FileArchive,
-  Package
+  Package,
+  History,
+  LogOut
 } from 'lucide-react';
+import { authApi } from '@/api/auth';
 import { adminApi } from '@/api/admin';
 import { judgeApi } from '@/api/judge';
 import { useHistoryStore } from '@/stores/historyStore';
@@ -62,6 +65,19 @@ export function SubmitWorkPage() {
   
   const [isDragOver, setIsDragOver] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+
+  // 路由拦截器：防止提交过程中刷新页面
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (submitting) {
+        e.preventDefault();
+        e.returnValue = '';
+        return '';
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [submitting]);
 
   const selectedContest = useMemo(() => {
     return contests.find((c) => c.id === selectedContestId);
@@ -115,13 +131,13 @@ export function SubmitWorkPage() {
     setSubmitting(true);
     try {
       const filenames = readyFiles.map(f => f.serverFilename!);
-      const results = await judgeApi.submitBatchJudge(selectedContestId, filenames, selectedTrackId);
+      const response = await judgeApi.submitBatchJudge(selectedContestId, filenames, selectedTrackId);
       
       const contest = contests.find((c) => c.id === selectedContestId);
       const track = availableTracks.find((t) => t.id === selectedTrackId);
       
       // 为每个结果添加历史记录
-      results.forEach((res, index) => {
+      response.tasks.forEach((res, index) => {
         const originalFile = readyFiles[index];
         if (originalFile) {
           addRecord({
@@ -134,7 +150,7 @@ export function SubmitWorkPage() {
       });
       
       // 跳转到批量结果页面
-      const workflowIds = results.map(r => r.workflow_run_id).join(',');
+      const workflowIds = response.tasks.map(r => r.workflow_run_id).join(',');
       navigate(`/batch-result/${workflowIds}`);
     } catch (e: unknown) {
       const error = e as { response?: { data?: { detail?: string } }; message?: string };
@@ -332,7 +348,26 @@ export function SubmitWorkPage() {
               灵审云评 <span className="text-cyan-400">/</span> 工作站
             </span>
           </div>
-          <div className="w-[88px]" /> {/* 占位平衡 */}
+          <div className="flex items-center gap-2">
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={() => navigate('/history')} 
+              className="text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+            >
+              <History className="w-4 h-4 mr-2" />
+              历史记录
+            </Button>
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={() => authApi.logout()} 
+              className="text-slate-400 hover:text-red-400 hover:bg-red-400/10 transition-colors"
+            >
+              <LogOut className="w-4 h-4 mr-2" />
+              退出
+            </Button>
+          </div>
         </div>
       </header>
 

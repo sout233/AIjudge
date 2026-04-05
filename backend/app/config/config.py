@@ -14,11 +14,11 @@ REPORT_TEMPLATE_DIR = os.path.join(STORAGE_DIR, "download_templates")
 PDF_CACHE_DIR = os.path.join(RESULT_DIR, "pdf_cache")
 
 # ================= DIFY 配置 =================
-DIFY_BASE_URL = "http://47.103.34.195:8088/v1"
-DIFY_MAIN_WORKFLOW_APIKEY = "app-zoMij2BlaNalNKdRi5JICKye"
-DIFY_EXTRACT_WORKFLOW_APIKEY = "app-KVT2hzCNFZY0S5FtuCC7aSS2"
+DIFY_BASE_URL = "http://8.146.235.208:8088/v1"
+DIFY_MAIN_WORKFLOW_APIKEY = "app-TcomIHKgmUNgB2RbOgV4PCbc" #测试工作流
+DIFY_EXTRACT_WORKFLOW_APIKEY = "app-4brHsMOwUgkxaFcHLcQB2ZLV"
 
 # ================= JWT 配置 =================
-SECRET_KEY = "your-secret-key-666"
+SECRET_KEY = "8qZpIXgzPRk2k4KQXSCmPDD3KotyZEiOtuSZ"
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_DAYS = 7

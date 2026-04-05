@@ -1,5 +1,6 @@
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
-import { ArrowLeft, Trophy, Bell, Scale } from 'lucide-react';
+import { ArrowLeft, Trophy, Bell, Scale, LogOut } from 'lucide-react';
+import { authApi } from '@/api/auth';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
@@ -14,12 +15,18 @@ export function AdminLayout() {
       <div className="border-b bg-card mb-6">
         <div className="container mx-auto px-4 h-14 flex items-center justify-between">
           <h1 className="text-xl font-bold">管理后台</h1>
-          <NavLink to="/">
-            <Button variant="ghost" size="sm" className="gap-2">
-              <ArrowLeft className="h-4 w-4" />
-              首页
+          <div className="flex items-center gap-2">
+            <NavLink to="/">
+              <Button variant="ghost" size="sm" className="gap-2">
+                <ArrowLeft className="h-4 w-4" />
+                首页
+              </Button>
+            </NavLink>
+            <Button variant="ghost" size="sm" className="gap-2 text-red-400 hover:text-red-300 hover:bg-red-950/30" onClick={() => authApi.logout()}>
+              <LogOut className="h-4 w-4" />
+              退出
             </Button>
-          </NavLink>
+          </div>
         </div>
       </div>
 

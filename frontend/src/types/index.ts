@@ -21,12 +21,12 @@ export interface Contest {
   id: string;
   name: string;
   description?: string;
-  logo?: string;  // Base64编码的竞赛logo
+  logo?: string;
   status: 'active' | 'upcoming' | 'ended';
-  start_time?: string;  // 竞赛开始时间 (ISO 8601 格式)
-  end_time?: string;    // 竞赛结束时间 (ISO 8601 格式)
-  is_published?: boolean;  // 是否上线（发布）
-  endDate?: string;  // 兼容旧字段
+  start_time?: string;
+  end_time?: string;
+  is_published?: boolean;
+  endDate?: string;
   participants?: number;
   submissions?: number;
   tracks: Track[];
@@ -75,7 +75,6 @@ export interface JudgeDimension {
   points: JudgePoint[];
 }
 
-// 单评委结果（旧格式，向后兼容）
 export interface JudgeResult {
   total_score: number;
   max_score: number;
@@ -83,9 +82,16 @@ export interface JudgeResult {
   dimensions: JudgeDimension[];
 }
 
-// 多评委结构（新格式）
+export interface FinalReview {
+  final_total_score: number;
+  final_max_score: number;
+  final_comment: string;
+  score_reason: string;
+}
+
 export interface JudgeEvaluation {
-  judge_tag: 'A' | 'B' | 'C';
+  judge_tag: string;
+  project_name?: string;
   judge_style: string;
   total_score: number;
   max_score: number;
@@ -95,7 +101,12 @@ export interface JudgeEvaluation {
 
 export interface MultiJudgeResult {
   project_name: string;
+  final_review?: FinalReview;
   evaluations: JudgeEvaluation[];
+}
+
+export interface WrappedJudgeResult {
+  result: JudgeResult | MultiJudgeResult;
 }
 
 export interface WorkflowMessage {
@@ -111,7 +122,8 @@ export interface JudgeStatusResponse {
     workflow_data?: {
       data?: {
         outputs?: {
-          text?: string | JudgeResult | MultiJudgeResult;
+          result?: JudgeResult | MultiJudgeResult | WrappedJudgeResult;
+          text?: string | JudgeResult | MultiJudgeResult | WrappedJudgeResult;
         };
         error?: string;
       };
@@ -132,19 +144,6 @@ export interface SubmitResponse {
 
 export type VerificationStatus = 'idle' | 'loading' | 'success' | 'not_found' | 'mismatch';
 
-export interface CaptchaTask {
-  session_id: string;
-  wait_time: number;
-  width: number;
-  height: number;
-  bg_image: string;
-}
-
-export interface CaptchaPoint {
-  x: number;
-  y: number;
-}
-
 export interface CertificateExtractResponse {
   status: VerificationStatus;
   reg_no?: string;
@@ -159,6 +158,16 @@ export interface HistoryRecord {
   filename: string;
   contestName: string;
   time: string;
+}
+
+export interface JudgeHistory {
+  workflow_run_id: string;
+  filename: string;
+  contest_id: string;
+  track_id?: string;
+  status: 'pending' | 'running' | 'succeeded' | 'success' | 'failed' | 'error';
+  created_at: string;
+  elapsed_time: number;
 }
 
 // ==================== API Error ====================

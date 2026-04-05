@@ -10,6 +10,7 @@ import { ResultPage } from '@/pages/ResultPage';
 import { BatchResultPage } from '@/pages/BatchResultPage';
 import { ZipBatchResultPage } from '@/pages/ZipBatchResultPage';
 import { CheckCertificatePage } from '@/pages/CheckCertificatePage';
+import { HistoryPage } from '@/pages/HistoryPage';
 import { AdminLayout } from '@/pages/admin/AdminLayout';
 import { ContestManagement } from '@/pages/admin/ContestManagement';
 import { AnnouncementManagement } from '@/pages/admin/AnnouncementManagement';
@@ -45,6 +46,7 @@ function App() {
         {/* 受保护路由：必须登录 */}
         <Route element={<ProtectedRoute />}>
           <Route path="/judge" element={<SubmitWorkPage />} />
+          <Route path="/history" element={<HistoryPage />} />
         </Route>
 
         {/* 管理员路由：必须 admin/owner */}

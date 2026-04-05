@@ -91,15 +91,15 @@ async def start_judge(data: JudgeRequest, background_tasks: BackgroundTasks, cur
     workflow_run_id = uuid.uuid4().hex
     result_path = os.path.join(RESULT_DIR, f"{workflow_run_id}.json")
 
-    _init_result(result_path, data)
+    _init_result(result_path, data, current_user_name)
 
     def run_task():
         try:
             file_id = upload_file_to_dify(file_path, data.filename, current_user_name)
             result = run_workflow_with_file(file_id, score_rule_json, current_user_name)
-            _save_result(result_path, data, result)
+            _save_result(result_path, data, result, current_user_name)
         except Exception as e:
-            _save_error(result_path, data, str(e))
+            _save_error(result_path, data, str(e), current_user_name)
 
     background_tasks.add_task(run_task)
 
@@ -110,7 +110,8 @@ async def start_judge(data: JudgeRequest, background_tasks: BackgroundTasks, cur
     )
 
 
-def _init_result(result_path: str, data: JudgeRequest):
+def _init_result(result_path: str, data: JudgeRequest, current_user_name: str = ""):
+    from datetime import datetime
     with open(result_path, "w", encoding="utf-8") as f:
         json.dump(
             {
@@ -122,6 +123,8 @@ def _init_result(result_path: str, data: JudgeRequest):
                     "contest_id": data.contest_id,
                     "track_id": data.track_id,
                     "filename": data.filename,
+                    "user_name": current_user_name,
+                    "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                 },
             },
             f,
@@ -130,7 +133,18 @@ def _init_result(result_path: str, data: JudgeRequest):
         )
 
 
-def _save_result(result_path: str, data: JudgeRequest, result: dict):
+def _save_result(result_path: str, data: JudgeRequest, result: dict, current_user_name: str = ""):
+    from datetime import datetime
+    # 先读取现有metadata（如果存在）
+    existing_metadata = {}
+    if os.path.exists(result_path):
+        try:
+            with open(result_path, "r", encoding="utf-8") as f:
+                existing_data = json.load(f)
+                existing_metadata = existing_data.get("metadata", {})
+        except:
+            pass
+    
     with open(result_path, "w", encoding="utf-8") as f:
         json.dump(
             {
@@ -142,6 +156,8 @@ def _save_result(result_path: str, data: JudgeRequest, result: dict):
                     "contest_id": data.contest_id,
                     "track_id": data.track_id,
                     "filename": data.filename,
+                    "user_name": existing_metadata.get("user_name") or current_user_name,
+                    "created_at": existing_metadata.get("created_at") or datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                 },
             },
             f,
@@ -150,7 +166,18 @@ def _save_result(result_path: str, data: JudgeRequest, result: dict):
         )
 
 
-def _save_error(result_path: str, data: JudgeRequest, error_msg: str):
+def _save_error(result_path: str, data: JudgeRequest, error_msg: str, current_user_name: str = ""):
+    from datetime import datetime
+    # 先读取现有metadata（如果存在）
+    existing_metadata = {}
+    if os.path.exists(result_path):
+        try:
+            with open(result_path, "r", encoding="utf-8") as f:
+                existing_data = json.load(f)
+                existing_metadata = existing_data.get("metadata", {})
+        except:
+            pass
+    
     with open(result_path, "w", encoding="utf-8") as f:
         json.dump(
             {
@@ -162,6 +189,8 @@ def _save_error(result_path: str, data: JudgeRequest, error_msg: str):
                     "contest_id": data.contest_id,
                     "track_id": data.track_id,
                     "filename": data.filename,
+                    "user_name": existing_metadata.get("user_name") or current_user_name,
+                    "created_at": existing_metadata.get("created_at") or datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                 },
             },
             f,
@@ -743,3 +772,37 @@ async def get_status(workflow_run_id: str):
         workflow_data=data,
         progress="\n".join([str(m) for m in data.get("messages", [])]),
     )
+
+
+async def get_history(current_user_name: str):
+    """获取当前用户的历史评审记录"""
+    history = []
+    if not os.path.exists(RESULT_DIR):
+        return []
+    
+    for filename in os.listdir(RESULT_DIR):
+        if not filename.endswith(".json") or filename.startswith("manifest") or filename.startswith("zip_manifest"):
+            continue
+        
+        path = os.path.join(RESULT_DIR, filename)
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                meta = data.get("metadata", {})
+                # 检查是否属于当前用户（如果记录了user_name）
+                if meta.get("user_name") == current_user_name or not meta.get("user_name"):
+                    history.append({
+                        "workflow_run_id": filename.replace(".json", ""),
+                        "filename": meta.get("original_name") or meta.get("filename", "未知文件"),
+                        "contest_id": meta.get("contest_id", ""),
+                        "track_id": meta.get("track_id"),
+                        "status": data.get("status", "unknown"),
+                        "created_at": meta.get("created_at", ""),
+                        "elapsed_time": data.get("elapsed_time", 0),
+                    })
+        except Exception:
+            continue
+    
+    # 按创建时间倒序排序
+    history.sort(key=lambda x: x.get("created_at", ""), reverse=True)
+    return history

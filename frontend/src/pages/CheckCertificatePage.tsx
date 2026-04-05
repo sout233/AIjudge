@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -9,23 +9,13 @@ import {
   XCircle,
   FileText,
   Loader2,
-  Shield,
-  RefreshCw,
-  X,
 } from 'lucide-react';
 import { judgeApi } from '@/api/judge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import type { VerificationStatus, CaptchaTask, CaptchaPoint } from '@/types';
+import type { VerificationStatus } from '@/types';
 
 export function CheckCertificatePage() {
   const navigate = useNavigate();
@@ -35,55 +25,6 @@ export function CheckCertificatePage() {
   const [regNo, setRegNo] = useState('');
   const [owner, setOwner] = useState('');
   const [softName, setSoftName] = useState('');
-
-  // 验证码弹窗状态
-  const [captchaDialogOpen, setCaptchaDialogOpen] = useState(false);
-  const [currentTask, setCurrentTask] = useState<CaptchaTask | null>(null);
-  const [points, setPoints] = useState<CaptchaPoint[]>([]);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [pendingCount, setPendingCount] = useState(0);
-
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
-  const processedTasksRef = useRef<Set<string>>(new Set());
-
-  // 后台轮询检查验证码任务
-  const checkCaptchaTasks = useCallback(async () => {
-    // 如果当前已有弹窗打开，跳过本次检查
-    if (captchaDialogOpen) return;
-
-    try {
-      const tasks = await judgeApi.getPendingCaptchas();
-
-      setPendingCount(tasks.length);
-
-      // 查找未处理的任务
-      const unprocessedTask = tasks.find(
-        (task) => !processedTasksRef.current.has(task.session_id),
-      );
-
-      if (unprocessedTask) {
-        // 标记为已处理，避免重复弹出
-        processedTasksRef.current.add(unprocessedTask.session_id);
-        setCurrentTask(unprocessedTask);
-        setPoints([]);
-        setCaptchaDialogOpen(true);
-      }
-    } catch (error) {
-      console.error('检查验证码任务失败', error);
-    }
-  }, [captchaDialogOpen]);
-
-  // 启动后台轮询
-  useEffect(() => {
-    checkCaptchaTasks(); // 立即执行一次
-    intervalRef.current = setInterval(checkCaptchaTasks, 3000);
-
-    return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-      }
-    };
-  }, [checkCaptchaTasks]);
 
   // 证书核验功能
   const handleVerify = async () => {
@@ -138,52 +79,6 @@ export function CheckCertificatePage() {
     }
   };
 
-  // 验证码处理功能
-  const recordPoint = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!currentTask) return;
-
-    const wrapper = e.currentTarget;
-    const rect = wrapper.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-
-    setPoints((prev) => [
-      ...prev,
-      { x: parseFloat(x.toFixed(2)), y: parseFloat(y.toFixed(2)) },
-    ]);
-  };
-
-  const resetPoints = () => {
-    setPoints([]);
-  };
-
-  const submitCaptcha = async () => {
-    if (!currentTask || points.length === 0) {
-      alert('请先标注坐标');
-      return;
-    }
-
-    setIsSubmitting(true);
-
-    try {
-      await judgeApi.submitCaptchaPoints(currentTask.session_id, points);
-
-      setCaptchaDialogOpen(false);
-      setCurrentTask(null);
-      setPoints([]);
-    } catch {
-      alert('提交异常');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const skipCurrentTask = () => {
-    setCaptchaDialogOpen(false);
-    setCurrentTask(null);
-    setPoints([]);
-  };
-
   return (
     <div className="max-w-5xl mx-auto space-y-6 pb-12 px-4">
       <Button variant="ghost" onClick={() => navigate('/')} className="group">
@@ -197,17 +92,6 @@ export function CheckCertificatePage() {
         <p className="text-muted-foreground">
           通过官方数据库实时核对软件著作权登记证书的真实性
         </p>
-
-        {/* 后台轮询状态指示器 */}
-        {pendingCount > 0 && (
-          <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground mt-2">
-            <RefreshCw className="h-3 w-3 animate-spin" />
-            <span>系统后台检测中</span>
-            <Badge variant="secondary" className="text-xs">
-              {pendingCount} 个待处理任务
-            </Badge>
-          </div>
-        )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -340,98 +224,6 @@ export function CheckCertificatePage() {
           )}
         </div>
       )}
-
-      {/* 验证码弹窗 */}
-      <Dialog open={captchaDialogOpen} onOpenChange={setCaptchaDialogOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Shield className="h-5 w-5 text-primary" />
-              安全验证
-            </DialogTitle>
-          </DialogHeader>
-
-          {currentTask && (
-            <div className="space-y-4">
-              <div className="text-sm text-muted-foreground text-center">
-                请点击图片中的目标位置完成验证
-                {pendingCount > 1 && (
-                  <Badge variant="outline" className="ml-2">
-                    剩余 {pendingCount - 1} 个任务
-                  </Badge>
-                )}
-              </div>
-
-              <div
-                className="relative cursor-crosshair border rounded-lg overflow-hidden mx-auto shadow-inner bg-muted"
-                style={{ width: currentTask.width, height: currentTask.height }}
-                onClick={recordPoint}
-              >
-                <img
-                  src={currentTask.bg_image}
-                  width={currentTask.width}
-                  height={currentTask.height}
-                  alt="验证码"
-                  className="block"
-                />
-                {/* 渲染已点击的点 */}
-                {points.map((point, index) => (
-                  <div
-                    key={index}
-                    className="absolute w-6 h-6 bg-primary text-primary-foreground rounded-full flex items-center justify-center text-xs font-bold transform -translate-x-1/2 -translate-y-1/2 pointer-events-none shadow-lg ring-2 ring-white"
-                    style={{ left: point.x, top: point.y }}
-                  >
-                    {index + 1}
-                  </div>
-                ))}
-              </div>
-
-              {/* 坐标显示 */}
-              {points.length > 0 && (
-                <div className="flex flex-wrap gap-2 justify-center">
-                  {points.map((point, index) => (
-                    <Badge key={index} variant="secondary" className="text-xs">
-                      点{index + 1}: ({point.x}, {point.y})
-                    </Badge>
-                  ))}
-                </div>
-              )}
-
-              <div className="flex gap-3 pt-2">
-                <Button
-                  variant="outline"
-                  className="flex-1"
-                  onClick={resetPoints}
-                  disabled={isSubmitting}
-                >
-                  <RefreshCw className="h-4 w-4 mr-2" />
-                  重置
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={skipCurrentTask}
-                  disabled={isSubmitting}
-                >
-                  <X className="h-4 w-4 mr-2" />
-                  跳过
-                </Button>
-                <Button
-                  className="flex-1"
-                  onClick={submitCaptcha}
-                  disabled={isSubmitting || points.length === 0}
-                >
-                  {isSubmitting ? (
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  ) : (
-                    <CheckCircle2 className="h-4 w-4 mr-2" />
-                  )}
-                  提交
-                </Button>
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

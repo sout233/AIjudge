@@ -4,14 +4,9 @@ import type {
   SubmitResponse,
   JudgeStatusResponse,
   VerificationStatus,
-  CaptchaTask,
-  CaptchaPoint,
   CertificateExtractResponse,
+  JudgeHistory,
 } from '@/types';
-
-interface PendingCaptchasResponse {
-  data?: CaptchaTask[];
-}
 
 interface VerifyInitResponse {
   code?: number;
@@ -86,24 +81,16 @@ export const judgeApi = {
     }
   },
 
-  getPendingCaptchas: (): Promise<CaptchaTask[]> =>
-    client.get('/verify/pending').then((res: PendingCaptchasResponse) => {
-      const tasks = res.data || res;
-      return Array.isArray(tasks) ? tasks : [];
-    }),
-
-  submitCaptchaPoints: (sessionId: string, points: CaptchaPoint[]): Promise<unknown> =>
-    client.post('/verify/submit-query', {
-      session_id: sessionId,
-      points: points,
-    }),
-
   uploadAndVerifyCertificate: (file: File): Promise<CertificateExtractResponse> => {
     const formData = new FormData();
     formData.append('file', file);
     return client.post('/verify/upload-extract', formData);
   },
-  submitBatchJudge: (contestId: string, filenames: string[], trackId?: string): Promise<{ workflow_run_id: string; filename: string }[]> =>
+  submitBatchJudge: (contestId: string, filenames: string[], trackId?: string): Promise<{
+    manifest_id: string;
+    total: number;
+    tasks: { workflow_run_id: string; filename: string }[];
+  }> =>
     client.post("/batch_judge", {
       contest_id: contestId,
       filenames,
@@ -142,5 +129,7 @@ export const judgeApi = {
     }[];
   }> =>
     client.get(`/zip_batch/${manifestId}/status`),
+
+  getHistory: (): Promise<JudgeHistory[]> => client.get('/history'),
 
 };

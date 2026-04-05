@@ -1,7 +1,8 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef } from 'react';
 import { judgeApi } from '@/api/judge';
-import type { JudgeResult, JudgeStatusResponse, MultiJudgeResult } from '@/types';
+import type { JudgeStatusResponse } from '@/types';
+import { parseJudgeResult } from '@/lib/judge-result';
 
 const STATUS_MAP: Record<string, string> = {
   pending: '等待',
@@ -10,19 +11,6 @@ const STATUS_MAP: Record<string, string> = {
   success: '完成',
   failed: '失败',
   error: '错误',
-};
-
-const parseResult = (data: JudgeStatusResponse): JudgeResult | MultiJudgeResult | null => {
-  try {
-    const deepOutput = data?.workflow_data?.workflow_data?.data?.outputs?.text;
-    if (deepOutput) {
-      const parsed = typeof deepOutput === 'string' ? JSON.parse(deepOutput) : deepOutput;
-      return parsed;
-    }
-    return null;
-  } catch {
-    return null;
-  }
 };
 
 const parseProgressText = (data: JudgeStatusResponse): string => {
@@ -74,7 +62,7 @@ export function useJudgePolling(workflowRunId: string | undefined) {
     staleTime: 0,
   });
 
-  const result = query.data ? parseResult(query.data) : null;
+  const result = query.data ? parseJudgeResult(query.data) : null;
   const progressText = query.data ? parseProgressText(query.data) : '';
   const status = query.data?.status || 'pending';
   const statusText = STATUS_MAP[status] || status.toUpperCase();

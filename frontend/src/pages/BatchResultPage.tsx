@@ -20,6 +20,7 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/utils';
 import type { JudgeStatusResponse } from '@/types';
+import { getJudgeSummaryScore, parseJudgeResult } from '@/lib/judge-result';
 
 interface BatchItem {
   workflowRunId: string;
@@ -65,14 +66,17 @@ export function BatchResultPage() {
 
           try {
             const status = await judgeApi.getStatus(item.workflowRunId);
+            const parsedResult = parseJudgeResult(status);
+            const summaryScore = parsedResult ? getJudgeSummaryScore(parsedResult) : undefined;
             return {
               ...item,
               status: status.status,
               progress: status.progress,
-              result: status.workflow_data?.workflow_data?.data?.outputs?.text 
-                ? (typeof status.workflow_data.workflow_data.data.outputs.text === 'string' 
-                    ? JSON.parse(status.workflow_data.workflow_data.data.outputs.text)
-                    : status.workflow_data.workflow_data.data.outputs.text)
+              result: summaryScore
+                ? {
+                    total_score: summaryScore.totalScore,
+                    max_score: summaryScore.maxScore,
+                  }
                 : undefined,
               isLoading: status.status === 'running' || status.status === 'pending',
             };

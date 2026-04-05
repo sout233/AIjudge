@@ -3,7 +3,7 @@ from fastapi import APIRouter, BackgroundTasks, File, HTTPException, UploadFile,
 
 from app.api.deps import get_current_user_name
 from app.models.schemas import JudgeRequest, JudgeResponse, WorkflowStatus, BatchJudgeRequest, ZipBatchJudgeRequest
-from app.services.judge import upload_file, start_judge, get_status, batch_start_judge, zip_batch_start_judge, get_zip_batch_status
+from app.services.judge import upload_file, start_judge, get_status, batch_start_judge, zip_batch_start_judge, get_zip_batch_status, get_history
 
 router = APIRouter()
 
@@ -53,3 +53,9 @@ async def api_zip_batch_status(manifest_id: str):
 @router.get("/judge/{workflow_run_id}/status", response_model=WorkflowStatus)
 async def api_status(workflow_run_id: str):
     return await get_status(workflow_run_id)
+
+
+@router.get("/history")
+async def api_history(current_user_name: str = Depends(get_current_user_name)):
+    """获取当前用户的历史评审记录"""
+    return await get_history(current_user_name)

@@ -115,13 +115,34 @@ export function HomePage() {
                   <span className="text-slate-400 text-sm hidden sm:inline">
                     欢迎，{user?.email?.split('@')[0]}
                   </span>
+
+                  {(user?.role === 'admin' || user?.role === 'owner') && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => navigate('/admin/contests')}
+                      className="text-slate-400 hover:text-black"
+                    >
+                      管理后台
+                    </Button>
+                  )}
+
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => navigate('/history')}
+                    className="text-slate-400 hover:text-black"
+                  >
+                    测评历史
+                  </Button>
+
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => navigate('/admin/contests')}
-                    className="border-slate-700 text-slate-300 hover:bg-slate-800"
+                    onClick={() => navigate('/judge')}
+                    className="border-cyan-600 bg-cyan-500 text-cyan-50 hover:bg-cyan-950 hover:text-white/70"
                   >
-                    管理后台
+                    开始评审
                   </Button>
                 </>
               ) : (
@@ -168,7 +189,7 @@ export function HomePage() {
                 variant="outline"
                 size="lg"
                 onClick={() => navigate('/contests')}
-                className="h-14 px-8 text-lg border-slate-700 text-slate-300 hover:bg-slate-800"
+                className="h-14 px-8 text-lg border-slate-700 text-slate-700 hover:bg-slate-400"
               >
                 查看竞赛列表
               </Button>
@@ -178,7 +199,7 @@ export function HomePage() {
                 variant="outline"
                 size="lg"
                 onClick={() => navigate('/check-certificate')}
-                className="h-14 px-8 text-lg border-emerald-500/50 text-emerald-400 hover:bg-emerald-500/10 hover:border-emerald-500 transition-all"
+                className="h-14 px-8 text-lg border-emerald-500/50 text-emerald-400 hover:bg-emerald-500/90 hover:border-emerald-500 transition-all"
               >
                 <ShieldCheck className="w-5 h-5 mr-2" />
                 证书鉴伪核验
