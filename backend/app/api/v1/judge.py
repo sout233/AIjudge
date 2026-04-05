@@ -4,6 +4,7 @@ from fastapi import APIRouter, BackgroundTasks, File, HTTPException, UploadFile,
 from app.api.deps import get_current_user_name
 from app.models.schemas import JudgeRequest, JudgeResponse, WorkflowStatus, BatchJudgeRequest, ZipBatchJudgeRequest
 from app.services.judge import upload_file, start_judge, get_status, batch_start_judge, zip_batch_start_judge, get_zip_batch_status, get_history
+from app.services.download import export_zip_batch_results
 
 router = APIRouter()
 
@@ -48,6 +49,22 @@ async def api_zip_batch_judge(
 async def api_zip_batch_status(manifest_id: str):
     """获取 ZIP 批量任务的总体状态和进度"""
     return await get_zip_batch_status(manifest_id)
+
+
+@router.get("/zip_batch/{manifest_id}/export")
+async def api_zip_batch_export(manifest_id: str):
+    """批量导出 ZIP 任务结果为 ZIP 文件（包含 PDF 报告和 Excel 汇总表）"""
+    from fastapi.responses import StreamingResponse
+    
+    zip_buffer = await export_zip_batch_results(manifest_id)
+    
+    return StreamingResponse(
+        zip_buffer,
+        media_type="application/zip",
+        headers={
+            "Content-Disposition": f"attachment; filename=zip_batch_export_{manifest_id[:8]}.zip"
+        }
+    )
 
 
 @router.get("/judge/{workflow_run_id}/status", response_model=WorkflowStatus)

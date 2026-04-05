@@ -21,6 +21,14 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/utils';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 
 interface ZipBatchTask {
   filename: string;
@@ -28,6 +36,8 @@ interface ZipBatchTask {
   status: string;
   error: string | null;
   workflow_run_id: string;
+  score?: number;
+  max_score?: number;
 }
 
 interface ZipBatchStatus {
@@ -54,29 +64,33 @@ export function ZipBatchResultPage() {
   useEffect(() => {
     if (!manifestId) return;
 
+    let intervalId: number | null = null;
+
     const fetchStatus = async () => {
       try {
         const data = await judgeApi.getZipBatchStatus(manifestId);
         setStatus(data);
         setError(null);
+        if (data.pending <= 0 && data.running <= 0 && intervalId !== null) {
+          window.clearInterval(intervalId);
+          intervalId = null;
+        }
       } catch (e: unknown) {
         const err = e as { response?: { data?: { detail?: string } }; message?: string };
-        setError(err.response?.data?.detail || err.message || '获取状态失败');
+        setError(err.response?.data?.detail || err.message || '\u83b7\u53d6\u72b6\u6001\u5931\u8d25');
       } finally {
         setLoading(false);
       }
     };
 
     fetchStatus();
+    intervalId = window.setInterval(fetchStatus, 2000);
 
-    // 如果还有任务未完成，继续轮询
-    const interval = setInterval(() => {
-      if (status && (status.pending > 0 || status.running > 0)) {
-        fetchStatus();
+    return () => {
+      if (intervalId !== null) {
+        window.clearInterval(intervalId);
       }
-    }, 2000);
-
-    return () => clearInterval(interval);
+    };
   }, [manifestId]);
 
   const getStatusIcon = (taskStatus: string) => {
@@ -89,6 +103,7 @@ export function ZipBatchResultPage() {
         return <XCircle className="w-5 h-5 text-red-500" />;
       case 'running':
         return <Loader2 className="w-5 h-5 text-cyan-500 animate-spin" />;
+      case 'queued':
       case 'pending':
       default:
         return <Clock className="w-5 h-5 text-slate-500" />;
@@ -99,16 +114,18 @@ export function ZipBatchResultPage() {
     switch (taskStatus) {
       case 'success':
       case 'succeeded':
-        return '评审完成';
+        return '\u8bc4\u5ba1\u5b8c\u6210';
       case 'error':
       case 'failed':
-        return '评审失败';
+        return '\u8bc4\u5ba1\u5931\u8d25';
       case 'running':
-        return '评审中...';
+        return '\u8bc4\u5ba1\u4e2d...';
+      case 'queued':
+        return '\u6392\u961f\u4e2d';
       case 'pending':
-        return '等待中...';
+        return '\u7b49\u5f85\u4e2d...';
       default:
-        return '未知状态';
+        return '\u672a\u77e5\u72b6\u6001';
     }
   };
 
@@ -122,9 +139,29 @@ export function ZipBatchResultPage() {
         return 'destructive';
       case 'running':
         return 'secondary';
+      case 'queued':
       case 'pending':
       default:
         return 'outline';
+    }
+  };
+
+  const getStatusBadgeClassName = (taskStatus: string) => {
+    switch (taskStatus) {
+      case 'success':
+      case 'succeeded':
+        return 'text-green-100 bg-green-600/80 border-green-400/40';
+      case 'error':
+      case 'failed':
+        return 'text-red-100 bg-red-600/80 border-red-400/40';
+      case 'running':
+        return 'text-cyan-100 bg-cyan-600/70 border-cyan-400/40';
+      case 'queued':
+        return 'text-amber-100 bg-amber-600/70 border-amber-400/40';
+      case 'pending':
+        return 'text-slate-200 bg-slate-700/60 border-slate-500/40';
+      default:
+        return 'text-slate-200 bg-slate-700/60 border-slate-500/40';
     }
   };
 
@@ -148,14 +185,26 @@ export function ZipBatchResultPage() {
     }
   };
 
-  const downloadAllPdfs = async () => {
-    if (!status) return;
-    const completedTasks = status.tasks.filter(t => t.status === 'success' || t.status === 'succeeded');
+  const [exporting, setExporting] = useState(false);
+
+  const exportAllResults = async () => {
+    if (!status || !manifestId) return;
     
-    for (const task of completedTasks) {
-      await downloadPdf(task.workflow_run_id, task.original_name);
-      // 添加小延迟避免浏览器限制
-      await new Promise(resolve => setTimeout(resolve, 500));
+    setExporting(true);
+    try {
+      const blob = await judgeApi.exportZipBatch(manifestId);
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `zip_batch_export_${manifestId.slice(0, 8)}.zip`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch {
+      alert('导出失败，请重试');
+    } finally {
+      setExporting(false);
     }
   };
 
@@ -308,73 +357,102 @@ export function ZipBatchResultPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-3">
-              {status.tasks.map((task, index) => (
-                <div 
-                  key={task.workflow_run_id}
-                  className={cn(
-                    "flex items-center justify-between p-4 rounded-xl border transition-all",
-                    task.status === 'success' || task.status === 'succeeded'
-                      ? "bg-green-500/5 border-green-500/20" :
-                    task.status === 'error' || task.status === 'failed'
-                      ? "bg-red-500/5 border-red-500/20" :
-                    task.status === 'running'
-                      ? "bg-cyan-500/5 border-cyan-500/20" :
-                    "bg-slate-950/50 border-slate-800"
-                  )}
-                >
-                  <div className="flex items-center gap-4 flex-1 min-w-0">
-                    <div className="w-8 h-8 rounded-lg bg-slate-800 flex items-center justify-center flex-shrink-0">
-                      <span className="text-sm font-mono text-slate-500">#{index + 1}</span>
-                    </div>
-                    
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <p className="text-sm font-medium text-white truncate">
-                          {task.original_name}
-                        </p>
-                        <Badge variant={getStatusBadgeVariant(task.status)} className="text-xs">
-                          {getStatusText(task.status)}
-                        </Badge>
-                      </div>
-                      
-                      {task.error && (
-                        <p className="text-xs text-red-400 truncate">{task.error}</p>
+            <div className="rounded-lg border border-slate-800 overflow-hidden">
+              <Table>
+                <TableHeader className="bg-slate-950/50">
+                  <TableRow className="border-slate-800 hover:bg-transparent">
+                    <TableHead className="text-slate-400 font-medium w-[45%]">文件名</TableHead>
+                    <TableHead className="text-slate-400 font-medium w-[15%]">状态</TableHead>
+                    <TableHead className="text-slate-400 font-medium w-[15%] text-center">分数</TableHead>
+                    <TableHead className="text-slate-400 font-medium w-[25%] text-right">操作</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {status.tasks.map((task) => (
+                    <TableRow 
+                      key={task.workflow_run_id} 
+                      className={cn(
+                        "border-slate-800",
+                        task.status === 'success' || task.status === 'succeeded'
+                          ? "bg-green-500/5 hover:bg-green-500/10" :
+                        task.status === 'error' || task.status === 'failed'
+                          ? "bg-red-500/5 hover:bg-red-500/10" :
+                        task.status === 'running'
+                          ? "bg-cyan-500/5 hover:bg-cyan-500/10" :
+                        "hover:bg-slate-800/50"
                       )}
-                      
-                      <p className="text-xs font-mono text-slate-600">
-                        ID: {task.workflow_run_id.slice(0, 16)}...
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    {getStatusIcon(task.status)}
-                    
-                    {(task.status === 'success' || task.status === 'succeeded') && (
-                      <>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => navigate(`/result/${task.workflow_run_id}`)}
-                          className="text-cyan-400 hover:text-cyan-300 hover:bg-cyan-400/10"
+                    >
+                      <TableCell className="font-medium text-white">
+                        <div className="flex items-center gap-2">
+                          <span className="truncate max-w-[300px]" title={task.original_name}>
+                            {task.original_name}
+                          </span>
+                          {task.error && (
+                            <span className="text-xs text-red-400 truncate max-w-[150px]" title={task.error}>
+                              ({task.error})
+                            </span>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge
+                          variant={getStatusBadgeVariant(task.status)}
+                          className={cn('text-xs', getStatusBadgeClassName(task.status))}
                         >
-                          <ExternalLink className="w-4 h-4 mr-1" />
-                          详情
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => downloadPdf(task.workflow_run_id, task.original_name)}
-                          className="text-slate-400 hover:text-white hover:bg-slate-800"
-                        >
-                          <Download className="w-4 h-4" />
-                        </Button>
-                      </>
-                    )}
-                  </div>
-                </div>
-              ))}
+                          <span className="flex items-center gap-1">
+                            {getStatusIcon(task.status)}
+                            {getStatusText(task.status)}
+                          </span>
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-center">
+                        {task.status === 'success' || task.status === 'succeeded' ? (
+                          task.score !== undefined ? (
+                            <span className={cn(
+                              "font-bold",
+                              task.score >= 80 ? "text-green-400" :
+                              task.score >= 60 ? "text-yellow-400" :
+                              "text-orange-400"
+                            )}>
+                              {task.score}
+                              <span className="text-slate-500 text-xs">/{task.max_score || 100}</span>
+                            </span>
+                          ) : (
+                            <span className="text-slate-500">-</span>
+                          )
+                        ) : (
+                          <span className="text-slate-500">-</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          {(task.status === 'success' || task.status === 'succeeded') && (
+                            <>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => navigate(`/result/${task.workflow_run_id}`)}
+                                className="text-cyan-400 hover:text-cyan-300 hover:bg-cyan-400/10 h-8 px-2"
+                              >
+                                <ExternalLink className="w-4 h-4 mr-1" />
+                                查看
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => downloadPdf(task.workflow_run_id, task.original_name)}
+                                className="text-slate-400 hover:text-white hover:bg-slate-800 h-8 px-2"
+                              >
+                                <Download className="w-4 h-4" />
+                              </Button>
+                            </>
+                          )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
             </div>
 
             {status.tasks.length === 0 && (
@@ -395,13 +473,18 @@ export function ZipBatchResultPage() {
           >
             提交新任务
           </Button>
-          {status.completed > 0 && (
+          {(status.completed > 0 || status.failed > 0) && (
             <Button
-              onClick={downloadAllPdfs}
+              onClick={exportAllResults}
+              disabled={exporting}
               className="bg-cyan-600 hover:bg-cyan-500"
             >
-              <Download className="w-4 h-4 mr-2" />
-              下载全部报告 ({status.completed})
+              {exporting ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : (
+                <FileArchive className="w-4 h-4 mr-2" />
+              )}
+              一键导出全部 (ZIP)
             </Button>
           )}
         </div>

@@ -16,6 +16,7 @@ from app.utils.storage import load_contests
 
 # 全局并发控制信号量，限制并发数为 3
 JUDGE_SEMAPHORE = asyncio.Semaphore(3)
+ZIP_ALLOWED_EXTENSIONS = {".pdf", ".doc", ".docx", ".txt"}
 
 
 def _get_track_rule_id(contest_id: str, track_id: str | None) -> str:
@@ -278,9 +279,21 @@ async def batch_start_judge(data: BatchJudgeRequest, background_tasks: Backgroun
 
     # 启动后台任务，使用信号量控制并发
     def run_batch_with_concurrency():
-        asyncio.run(_execute_batch_tasks(
-            tasks_manifest, score_rule_json, current_user_name, data.contest_id
-        ))
+        # 获取当前运行的事件循环（FastAPI 的循环）
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            # 如果没有运行的事件循环，创建一个新的
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            loop.run_until_complete(_execute_batch_tasks(
+                tasks_manifest, score_rule_json, current_user_name, data.contest_id
+            ))
+        else:
+            # 如果已经有事件循环，直接创建任务
+            loop.create_task(_execute_batch_tasks(
+                tasks_manifest, score_rule_json, current_user_name, data.contest_id
+            ))
 
     background_tasks.add_task(run_batch_with_concurrency)
 
@@ -456,10 +469,13 @@ async def zip_batch_start_judge(data: ZipBatchJudgeRequest, background_tasks: Ba
     extracted_files = []
     try:
         with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+            extract_dir_abs = os.path.abspath(extract_dir)
             # 安全检查：防止路径遍历攻击
-            for member in zip_ref.namelist():
-                member_path = os.path.join(extract_dir, member)
-                if not member_path.startswith(os.path.abspath(extract_dir)):
+            for member in zip_ref.infolist():
+                member_path = os.path.abspath(
+                    os.path.join(extract_dir_abs, os.path.normpath(member.filename))
+                )
+                if not member_path.startswith(extract_dir_abs + os.sep) and member_path != extract_dir_abs:
                     raise HTTPException(400, "ZIP 文件包含不安全的路径")
             
             zip_ref.extractall(extract_dir)
@@ -468,11 +484,13 @@ async def zip_batch_start_judge(data: ZipBatchJudgeRequest, background_tasks: Ba
             for root, dirs, files in os.walk(extract_dir):
                 for file in files:
                     file_path = os.path.join(root, file)
+                    ext = os.path.splitext(file)[1].lower()
+                    if ext not in ZIP_ALLOWED_EXTENSIONS:
+                        continue
                     # 计算文件 hash 作为新文件名
                     with open(file_path, 'rb') as f:
                         file_hash = hashlib.md5(f.read()).hexdigest()
                     
-                    ext = os.path.splitext(file)[1].lower()
                     new_filename = f"{file_hash}{ext}"
                     new_path = os.path.join(UPLOAD_DIR, new_filename)
                     
@@ -549,9 +567,21 @@ async def zip_batch_start_judge(data: ZipBatchJudgeRequest, background_tasks: Ba
 
     # 启动后台任务，使用信号量控制并发
     def run_zip_batch_with_concurrency():
-        asyncio.run(_execute_zip_batch_tasks(
-            tasks_manifest, score_rule_json, current_user_name, data.contest_id
-        ))
+        # 获取当前运行的事件循环（FastAPI 的循环）
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            # 如果没有运行的事件循环，创建一个新的
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            loop.run_until_complete(_execute_zip_batch_tasks(
+                tasks_manifest, score_rule_json, current_user_name, data.contest_id
+            ))
+        else:
+            # 如果已经有事件循环，直接创建任务
+            loop.create_task(_execute_zip_batch_tasks(
+                tasks_manifest, score_rule_json, current_user_name, data.contest_id
+            ))
 
     background_tasks.add_task(run_zip_batch_with_concurrency)
 
@@ -695,6 +725,67 @@ def _save_zip_batch_error(result_path: str, contest_id: str, track_id: str | Non
         )
 
 
+def _extract_score_from_workflow_data(result_data: dict) -> tuple[float | None, float | None]:
+    """从 workflow 结果数据中提取分数
+    
+    返回: (score, max_score) 或 (None, None) 如果无法提取
+    """
+    try:
+        workflow_data = result_data.get("workflow_data", {})
+        data = workflow_data.get("workflow_data", {}).get("data", {})
+        outputs = data.get("outputs", {})
+        
+        # 尝试获取 result 或 text 字段
+        raw_result = outputs.get("result") or outputs.get("text")
+        if not raw_result:
+            return None, None
+        
+        # 如果是字符串，尝试解析 JSON
+        if isinstance(raw_result, str):
+            try:
+                parsed = json.loads(raw_result)
+            except json.JSONDecodeError:
+                return None, None
+        else:
+            parsed = raw_result
+        
+        # 处理 WrappedJudgeResult (包装格式)
+        if isinstance(parsed, dict) and "result" in parsed:
+            parsed = parsed["result"]
+        
+        # 多评审格式 (MultiJudgeResult)
+        if isinstance(parsed, dict) and "evaluations" in parsed and isinstance(parsed["evaluations"], list):
+            evaluations = parsed["evaluations"]
+            if not evaluations:
+                return None, None
+            
+            # 如果有最终评审结果，使用最终评审
+            final_review = parsed.get("final_review")
+            if final_review and isinstance(final_review, dict):
+                return (
+                    float(final_review.get("final_total_score", 0)),
+                    float(final_review.get("final_max_score", 100))
+                )
+            
+            # 否则计算平均分
+            total_score = sum(e.get("total_score", 0) for e in evaluations)
+            avg_score = round(total_score / len(evaluations))
+            max_score = evaluations[0].get("max_score", 100) if evaluations else 100
+            return float(avg_score), float(max_score)
+        
+        # 单评审格式 (JudgeResult)
+        if isinstance(parsed, dict) and "total_score" in parsed:
+            return (
+                float(parsed.get("total_score", 0)),
+                float(parsed.get("max_score", 100))
+            )
+        
+        return None, None
+    except Exception as e:
+        print(f"[_extract_score_from_workflow_data] 提取分数失败: {e}")
+        return None, None
+
+
 async def get_zip_batch_status(manifest_id: str):
     """获取 ZIP 批量任务的总体状态和进度"""
     manifest_path = os.path.join(RESULT_DIR, f"zip_manifest_{manifest_id}.json")
@@ -707,6 +798,7 @@ async def get_zip_batch_status(manifest_id: str):
     # 统计各状态的任务数量
     total = manifest["total"]
     tasks = manifest.get("tasks", [])
+    resolved_tasks = []
     
     completed = 0
     failed = 0
@@ -714,30 +806,56 @@ async def get_zip_batch_status(manifest_id: str):
     pending = 0
     
     for task in tasks:
-        if task["status"] == "error":
-            failed += 1
-        elif task["status"] == "queued":
-            pending += 1
-        else:
-            # 检查实际结果文件状态
-            if task.get("result_path") and os.path.exists(task["result_path"]):
-                try:
-                    with open(task["result_path"], "r", encoding="utf-8") as rf:
-                        result_data = json.load(rf)
-                    status = result_data.get("status", "")
-                    if status in ["success", "succeeded"]:
-                        completed += 1
-                    elif status == "error":
-                        failed += 1
-                    elif status == "running":
-                        running += 1
+        resolved_task = dict(task)
+        # 默认从 manifest 中读取状态，如果没有则使用 pending
+        resolved_status = task.get("status") or "pending"
+        
+        # 初始化分数字段
+        resolved_task["score"] = None
+        resolved_task["max_score"] = None
+
+        if task.get("result_path") and os.path.exists(task["result_path"]):
+            try:
+                with open(task["result_path"], "r", encoding="utf-8") as rf:
+                    result_data = json.load(rf)
+                # 优先使用结果文件中的状态
+                result_status = result_data.get("status")
+                if result_status:
+                    resolved_status = result_status
+                    resolved_task["status"] = resolved_status
+                
+                # 提取分数
+                if resolved_status in ["success", "succeeded"]:
+                    score, max_score = _extract_score_from_workflow_data(result_data)
+                    if score is not None:
+                        resolved_task["score"] = score
+                        resolved_task["max_score"] = max_score
+
+                messages = result_data.get("messages", [])
+                if resolved_status in ["error", "failed"] and not resolved_task.get("error") and messages:
+                    last_message = messages[-1]
+                    if isinstance(last_message, dict):
+                        resolved_task["error"] = last_message.get("text")
                     else:
-                        pending += 1
-                except:
-                    pending += 1
-            else:
-                pending += 1
-    
+                        resolved_task["error"] = str(last_message)
+            except Exception as e:
+                print(f"[get_zip_batch_status] 读取结果文件失败 {task.get('result_path')}: {e}")
+                pass
+        
+        # 确保 resolved_task 有最新的状态
+        resolved_task["status"] = resolved_status
+
+        if resolved_status in ["success", "succeeded"]:
+            completed += 1
+        elif resolved_status in ["error", "failed"]:
+            failed += 1
+        elif resolved_status == "running":
+            running += 1
+        else:
+            pending += 1
+
+        resolved_tasks.append(resolved_task)
+
     return {
         "manifest_id": manifest_id,
         "type": "zip_batch",
@@ -747,7 +865,7 @@ async def get_zip_batch_status(manifest_id: str):
         "running": running,
         "pending": pending,
         "progress": f"{completed + failed}/{total}",
-        "tasks": tasks
+        "tasks": resolved_tasks
     }
 
 

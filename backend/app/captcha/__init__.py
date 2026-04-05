@@ -1,5 +1,11 @@
 from .system import CaptchaSystem, get_target_coords
-from .predictor import CaptchaPredictor, MultiTaskResNet
+from .predictor import (
+    CaptchaPredictor,
+    MultiTaskResNet,
+    OnnxCaptchaPredictor,
+    PytorchCaptchaPredictor,
+    get_captcha_predictor,
+)
 from .image import (
     download_image,
     identify_gap_tcaptcha,
@@ -12,6 +18,9 @@ __all__ = [
     "get_target_coords",
     "CaptchaPredictor",
     "MultiTaskResNet",
+    "OnnxCaptchaPredictor",
+    "PytorchCaptchaPredictor",
+    "get_captcha_predictor",
     "download_image",
     "identify_gap_tcaptcha",
     "generate_tcaptcha_track",

@@ -126,9 +126,18 @@ export const judgeApi = {
       status: string;
       error: string | null;
       workflow_run_id: string;
+      score?: number;
+      max_score?: number;
     }[];
   }> =>
     client.get(`/zip_batch/${manifestId}/status`),
+
+  exportZipBatch: (manifestId: string): Promise<Blob> =>
+    rawClient
+      .get(`/zip_batch/${manifestId}/export`, {
+        responseType: 'blob',
+      })
+      .then((res) => res.data),
 
   getHistory: (): Promise<JudgeHistory[]> => client.get('/history'),
 

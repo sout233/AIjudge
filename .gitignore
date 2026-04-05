@@ -1,3 +1,5 @@
 backend.7z
 *.7z
 docs/*
+onnx/captcha_multi_task.pth
+onnx/__pycache__/export_captcha_onnx.cpython-313.pyc

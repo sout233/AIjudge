@@ -12,23 +12,8 @@ CUSTOM_MIME_TYPES = {
     # Microsoft Word
     '.doc': 'application/msword',
     '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    # Microsoft PowerPoint
-    '.ppt': 'application/vnd.ms-powerpoint',
-    '.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-    # Microsoft Excel
-    '.xls': 'application/vnd.ms-excel',
-    '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     # PDF
     '.pdf': 'application/pdf',
-    # 文本文件
-    '.txt': 'text/plain',
-    '.md': 'text/markdown',
-    # 图片
-    '.jpg': 'image/jpeg',
-    '.jpeg': 'image/jpeg',
-    '.png': 'image/png',
-    '.gif': 'image/gif',
-    '.webp': 'image/webp',
 }
 
 

@@ -648,7 +648,7 @@ export function SubmitWorkPage() {
                         ref={fileInputRef}
                         onChange={(e) => handleFileSelect(e.target.files)}
                         className="hidden"
-                        accept={uploadMode === 'zip' ? '.zip' : '.pdf,.doc,.docx,.ppt,.pptx'}
+                        accept={uploadMode === 'zip' ? '.zip' : '.pdf,.doc,.docx'}
                         multiple={uploadMode === 'multi'}
                       />
 
@@ -665,8 +665,8 @@ export function SubmitWorkPage() {
                         </p>
                         <p className="text-xs text-slate-500 font-mono uppercase tracking-widest">
                           {uploadMode === 'zip' ? 'Support: ZIP (MAX 100MB)' : 
-                           uploadMode === 'multi' ? 'Support: PDF, DOCX, PPTX (MAX 20MB each) • 支持多选' : 
-                           'Support: PDF, DOCX, PPTX (MAX 20MB)'}
+                           uploadMode === 'multi' ? 'Support: PDF, DOCX(MAX 20MB each) • 支持多选' : 
+                           'Support: PDF, DOCX(MAX 20MB)'}
                         </p>
                         {uploadMode === 'zip' && (
                           <p className="text-xs text-cyan-500/70 mt-2">

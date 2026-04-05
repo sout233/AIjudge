@@ -1,7 +1,7 @@
 import re
 from app.captcha.cutter import slice_captcha_in_memory
 from app.captcha.color import get_main_color, get_color_name_cn
-from app.captcha.predictor import CaptchaPredictor
+from app.captcha.predictor import get_captcha_predictor
 
 
 class InstructionParser:
@@ -49,7 +49,7 @@ class InstructionParser:
 
 class CaptchaSystem:
     def __init__(self, model_path):
-        self.predictor = CaptchaPredictor(model_path)
+        self.predictor = get_captcha_predictor(model_path)
 
     def process_image(self, img_path):
         """
